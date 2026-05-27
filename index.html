@@ -429,9 +429,9 @@ function initCharts(){
 
 let syncing=false;
 function syncTimeScales(src,dst){
-  src.timeScale().subscribeVisibleLogicalRangeChange(r=>{
+  src.timeScale().subscribeVisibleTimeRangeChange(r=>{
     if(syncing||!r) return; syncing=true;
-    dst.timeScale().setVisibleLogicalRange(r); syncing=false;
+    dst.timeScale().setVisibleRange(r); syncing=false;
   });
 }
 
