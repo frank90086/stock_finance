@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>2301 光寶科 · ATR 技術分析</title>
+<title>0050 元大台灣50 · 技術分析</title>
 <style>
   :root{
     --bg:#0a0e14;
@@ -123,7 +123,13 @@
   .card-head h2{font-size:13px;font-weight:700;letter-spacing:.5px;color:var(--txt-dim);text-transform:uppercase}
   #priceChart{height:380px;width:100%}
   #atrChart{height:200px;width:100%}
+  #kdChart{height:160px;width:100%}
+  #macdChart{height:160px;width:100%}
   .sub{border-top:1px solid var(--line)}
+  .fund-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:14px 0 0}
+  .fund-card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+  .fund-card .fk{font-size:11px;color:var(--txt-dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+  .fund-card .fv{font-family:ui-monospace,monospace;font-size:18px;font-weight:700}
 
   .status{
     margin:16px 0;padding:14px 16px;border-radius:12px;font-size:13.5px;line-height:1.55;
@@ -199,8 +205,8 @@
 <div class="wrap">
   <header>
     <div class="title-block">
-      <div class="ticker">TWSE · 2301</div>
-      <h1 id="stockName">光寶科 <span>Lite-On</span></h1>
+      <div class="ticker">TWSE · 0050</div>
+      <h1 id="stockName">元大台灣50 <span>0050</span></h1>
     </div>
     <div class="title-block" style="align-items:flex-end">
       <div class="quote">
@@ -223,14 +229,14 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="color:var(--txt-dim);flex:none">
           <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
         </svg>
-        <input id="stockInput" placeholder="輸入代碼或名稱，如 2301 或 光寶" autocomplete="off">
+        <input id="stockInput" placeholder="輸入代碼或名稱，如 0050 或 台積電" autocomplete="off">
         <button id="loadBtn">查詢</button>
       </div>
       <div id="suggest" class="suggest" hidden></div>
     </div>
   </div>
 
-  <div id="status" class="status loading"><span class="spin"></span>正在從證交所抓取 2301 光寶科歷史資料…</div>
+  <div id="status" class="status loading"><span class="spin"></span>正在從證交所抓取 0050 元大台灣50歷史資料…</div>
 
   <div class="legend">
     <div class="item"><span class="swatch" style="background:var(--up)"></span>K 線（紅漲綠跌，台股慣例）</div>
@@ -247,7 +253,10 @@
     <button class="tg" data-k="ma120" style="--c:var(--ma120)">MA120</button>
     <button class="tg" data-k="ma240" style="--c:var(--ma240)">MA240</button>
     <span class="tg-div"></span>
-    <button class="tg on" data-k="bb" style="--c:var(--bbBand)">布林通道</button>
+    <button class="tg on" data-k="bb"   style="--c:var(--bbBand)">布林通道</button>
+    <span class="tg-div"></span>
+    <button class="tg on" data-k="kd"   style="--c:#a78bfa">KD(9)</button>
+    <button class="tg on" data-k="macd" style="--c:#4ade80">MACD</button>
   </div>
 
   <div class="card">
@@ -259,7 +268,25 @@
     </div>
   </div>
 
+  <div class="card" id="kdCard" style="margin-top:12px">
+    <div class="card-head"><h2>KD — 隨機指標 (9)</h2><h2 id="kdReadout" style="font-family:ui-monospace,monospace"></h2></div>
+    <div id="kdChart"></div>
+  </div>
+
+  <div class="card" id="macdCard" style="margin-top:12px">
+    <div class="card-head"><h2>MACD (12, 26, 9)</h2><h2 id="macdReadout" style="font-family:ui-monospace,monospace"></h2></div>
+    <div id="macdChart"></div>
+  </div>
+
   <div class="stats" id="stats"></div>
+
+  <div id="fundamentals" style="display:none">
+    <div class="fund-grid">
+      <div class="fund-card"><div class="fk">本益比 P/E</div><div class="fv" id="stat-pe">—</div></div>
+      <div class="fund-card"><div class="fk">殖利率 Yield</div><div class="fv" id="stat-yield">—</div></div>
+      <div class="fund-card"><div class="fk">股價淨值比 P/B</div><div class="fv" id="stat-pb">—</div></div>
+    </div>
+  </div>
 
   <div class="strategy-section">
     <div class="ss-head">
@@ -287,7 +314,11 @@ const COLORS = {
   // 均線顏色（依週期由短到長）
   ma5:'#ff7eb6', ma10:'#f5a623', ma20:'#ffd23f', ma60:'#4ade80', ma120:'#38bdf8', ma240:'#a78bfa',
   // 布林通道
-  bbMid:'#9aa6b8', bbBand:'#5b9dff'
+  bbMid:'#9aa6b8', bbBand:'#5b9dff',
+  // KD
+  kLine:'#a78bfa', dLine:'#f9a8d4',
+  // MACD
+  macdLine:'#5b9dff', signalLine:'#f5a623',
 };
 
 const MA_DEFS = [
@@ -299,7 +330,10 @@ const MA_DEFS = [
   {p:240, key:'ma240', color:COLORS.ma240},
 ];
 
-let priceChart, atrChart, candleSeries, atr7Series, atr14Series, volSeries;
+let priceChart, atrChart, kdChart, macdChart;
+let candleSeries, atr7Series, atr14Series, volSeries;
+let kSeries, dSeries;
+let macdHistSeries, macdLineSeries, signalSeries;
 let maSeries = {};            // {ma5: series, ...}
 let bbUpper, bbMid, bbLower;  // 布林通道三線
 let lastBars = [];            // 保存最近一次 render 的資料，供切換指標時重算
@@ -307,10 +341,10 @@ let currentMonths = 6;
 // 跨圖查值：以時間字串為 key，讓上圖能查當日 ATR、下圖能查當日 OHLC
 let atrMap7 = new Map(), atrMap14 = new Map(), ohlcMap = new Map();
 
-// 指標開關狀態（預設：20MA + 布林通道 開）
+// 指標開關狀態（預設：20MA + 布林通道 + KD + MACD 開）
 const toggles = {
   ma5:false, ma10:false, ma20:true, ma60:false, ma120:false, ma240:false,
-  bb:true
+  bb:true, kd:true, macd:true
 };
 
 function initCharts(){
@@ -357,9 +391,30 @@ function initCharts(){
   atr7Series  = atrChart.addLineSeries({ color:COLORS.atr7,  lineWidth:2, title:'ATR(7)',  ...atrFmt });
   atr14Series = atrChart.addLineSeries({ color:COLORS.atr14, lineWidth:2, title:'ATR(14)', ...atrFmt });
 
-  // 同步兩張圖的時間軸縮放/平移
-  syncTimeScales(priceChart, atrChart);
-  syncTimeScales(atrChart, priceChart);
+  // KD 圖
+  kdChart = LightweightCharts.createChart(document.getElementById('kdChart'), common);
+  const kdFmt = { priceFormat:{ type:'price', precision:2, minMove:0.01 }, priceLineVisible:false, lastValueVisible:true };
+  kSeries = kdChart.addLineSeries({ color:COLORS.kLine, lineWidth:2, title:'K', ...kdFmt });
+  dSeries = kdChart.addLineSeries({ color:COLORS.dLine, lineWidth:2, title:'D', ...kdFmt });
+  kSeries.createPriceLine({ price:80, color:'rgba(200,200,200,.18)', lineWidth:1, lineStyle:2, axisLabelVisible:false });
+  kSeries.createPriceLine({ price:20, color:'rgba(200,200,200,.18)', lineWidth:1, lineStyle:2, axisLabelVisible:false });
+
+  // MACD 圖
+  macdChart = LightweightCharts.createChart(document.getElementById('macdChart'), common);
+  macdHistSeries = macdChart.addHistogramSeries({ priceLineVisible:false, lastValueVisible:false });
+  macdLineSeries = macdChart.addLineSeries({ color:COLORS.macdLine,   lineWidth:1.5, priceLineVisible:false, lastValueVisible:true,  title:'MACD' });
+  signalSeries   = macdChart.addLineSeries({ color:COLORS.signalLine, lineWidth:1.5, priceLineVisible:false, lastValueVisible:true,  title:'Signal' });
+  macdLineSeries.createPriceLine({ price:0, color:'rgba(200,200,200,.18)', lineWidth:1, lineStyle:0, axisLabelVisible:false });
+
+  // 同步所有圖的時間軸
+  const allCharts=[priceChart,atrChart,kdChart,macdChart];
+  allCharts.forEach(src=>{
+    src.timeScale().subscribeVisibleTimeRangeChange(r=>{
+      if(syncing||!r) return; syncing=true;
+      allCharts.forEach(dst=>{ if(dst!==src) try{ dst.timeScale().setVisibleRange(r); }catch(e){} });
+      syncing=false;
+    });
+  });
 
   // 十字游標：上圖移動 -> 顯示 OHLC + 連動下圖游標；下圖移動 -> 顯示 ATR + 連動上圖游標
   const ohlcEl = document.getElementById('ohlcReadout');
@@ -423,29 +478,23 @@ function initCharts(){
   window.addEventListener('resize', ()=>{
     priceChart.applyOptions({width:document.getElementById('priceChart').clientWidth});
     atrChart.applyOptions({width:document.getElementById('atrChart').clientWidth});
+    if(kdChart)   kdChart.applyOptions({width:document.getElementById('kdChart').clientWidth});
+    if(macdChart) macdChart.applyOptions({width:document.getElementById('macdChart').clientWidth});
     setTimeout(syncAxisWidth, 60);
   });
 }
 
 let syncing=false;
-function syncTimeScales(src,dst){
-  src.timeScale().subscribeVisibleTimeRangeChange(r=>{
-    if(syncing||!r) return; syncing=true;
-    dst.timeScale().setVisibleRange(r); syncing=false;
-  });
-}
 
-// 對齊兩圖右側價格軸寬度（兜底：高價股價格軸可能超過固定值）
+// 對齊所有圖右側價格軸寬度
 function syncAxisWidth(){
   if(!priceChart||!atrChart) return;
   try{
-    const w1 = priceChart.priceScale('right').width();
-    const w2 = atrChart.priceScale('right').width();
-    if(!w1 || !w2) return;          // 尚未繪製完成
-    const w = Math.max(w1, w2, 76);
-    if(Math.abs(w1-w)>0.5) priceChart.priceScale('right').applyOptions({ minimumWidth:w });
-    if(Math.abs(w2-w)>0.5) atrChart.priceScale('right').applyOptions({ minimumWidth:w });
-  }catch(e){ /* 固定 minimumWidth:76 已兜底 */ }
+    const charts=[priceChart,atrChart,kdChart,macdChart].filter(Boolean);
+    const widths=charts.map(c=>{ try{ return c.priceScale('right').width()||0; }catch(e){ return 0; } });
+    const w=Math.max(...widths,76);
+    charts.forEach((c,i)=>{ if(Math.abs(widths[i]-w)>0.5) c.priceScale('right').applyOptions({minimumWidth:w}); });
+  }catch(e){}
 }
 
 // ---------- ATR 計算 (Wilder) ----------
@@ -498,6 +547,51 @@ function computeBoll(bars, period=20, mult=2){
   return {up, mid, low};
 }
 
+// ---------- EMA ----------
+function computeEMA(values, period){
+  const k=2/(period+1); const out=[];
+  let ema=null, sum=0, cnt=0;
+  for(let i=0;i<values.length;i++){
+    if(ema===null){ sum+=values[i]; cnt++; if(cnt===period){ ema=sum/period; out.push(ema); } }
+    else{ ema=values[i]*k+ema*(1-k); out.push(ema); }
+  }
+  return out;  // 長度 = values.length - period + 1
+}
+
+// ---------- KD 隨機指標（台灣慣用：RSV 指數平滑，初值 50）----------
+function computeKD(bars, period=9, initVal=50){
+  const kArr=[], dArr=[]; let k=initVal, d=initVal;
+  for(let i=0;i<bars.length;i++){
+    if(i<period-1) continue;
+    let lo=bars[i].low, hi=bars[i].high;
+    for(let j=i-period+1;j<=i;j++){ lo=Math.min(lo,bars[j].low); hi=Math.max(hi,bars[j].high); }
+    const rsv=hi===lo?50:(bars[i].close-lo)/(hi-lo)*100;
+    k=k*2/3+rsv/3; d=d*2/3+k/3;
+    kArr.push({time:bars[i].time, value:+k.toFixed(2)});
+    dArr.push({time:bars[i].time, value:+d.toFixed(2)});
+  }
+  return {k:kArr, d:dArr};
+}
+
+// ---------- MACD (12, 26, 9) ----------
+function computeMACD(bars, fast=12, slow=26, sig=9){
+  const closes=bars.map(b=>b.close);
+  const fastEMA=computeEMA(closes,fast);   // 對應 bars[fast-1..]
+  const slowEMA=computeEMA(closes,slow);   // 對應 bars[slow-1..]
+  const macdRaw=slowEMA.map((sv,i)=>fastEMA[i+(slow-fast)]-sv);
+  const sigArr=computeEMA(macdRaw,sig);
+  const startBar=slow-1+sig-1;
+  const macdData=[], signalData=[], histData=[];
+  for(let i=0;i<sigArr.length;i++){
+    const t=bars[startBar+i].time;
+    const m=macdRaw[sig-1+i], s=sigArr[i], h=+(m-s).toFixed(3);
+    macdData.push({time:t,value:+m.toFixed(3)});
+    signalData.push({time:t,value:+s.toFixed(3)});
+    histData.push({time:t,value:h,color:h>=0?'rgba(239,83,80,.65)':'rgba(38,166,154,.65)'});
+  }
+  return {macd:macdData,signal:signalData,hist:histData};
+}
+
 // ---------- 資料抓取：證交所 STOCK_DAY，逐月，透過 CORS 代理 ----------
 const PROXIES = [
   {name:'allorigins', make:u => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u)},
@@ -513,6 +607,7 @@ function twseURL(stockNo, yyyymmdd){
 // ---------- 股票對照表（代碼 ↔ 名稱），供模糊搜尋 ----------
 // 內嵌備援清單：常見熱門股，萬一線上清單抓取失敗仍可用名稱搜尋
 const FALLBACK_LIST = [
+  ['0050','元大台灣50','上市'],['0056','元大高股息','上市'],['00878','國泰永續高股息','上市'],
   ['2330','台積電','上市'],['2317','鴻海','上市'],['2454','聯發科','上市'],
   ['2308','台達電','上市'],['2303','聯電','上市'],['2891','中信金','上市'],
   ['2882','國泰金','上市'],['2881','富邦金','上市'],['2884','玉山金','上市'],
@@ -696,6 +791,57 @@ async function loadData(stockNo, months){
   return {bars, name, okCount, total};
 }
 
+// ---------- Yahoo Finance 備援資料源 ----------
+async function loadDataYahoo(stockNo, months){
+  const end=Math.floor(Date.now()/1000);
+  const start=end-months*31*86400;
+  for(const sym of [stockNo+'.TW', stockNo+'.TWO']){
+    const url=`https://query1.finance.yahoo.com/v8/finance/chart/${sym}?period1=${start}&period2=${end}&interval=1d&includePrePost=false`;
+    for(const p of PROXIES){
+      try{
+        const json=await tryJSON(p,url,10000);
+        const result=json?.chart?.result?.[0];
+        if(!result?.timestamp?.length) continue;
+        const {timestamp,indicators:{quote:[q]}}=result;
+        const bars=[];
+        for(let i=0;i<timestamp.length;i++){
+          if(!q.open?.[i]||!q.close?.[i]) continue;
+          const dt=new Date(timestamp[i]*1000);
+          bars.push({
+            time:`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`,
+            open:+q.open[i].toFixed(2), high:+q.high[i].toFixed(2),
+            low:+q.low[i].toFixed(2),  close:+q.close[i].toFixed(2),
+            volume:Math.round((q.volume[i]||0)/1000)
+          });
+        }
+        if(bars.length<5) continue;
+        bars.sort((a,b)=>a.time<b.time?-1:1);
+        return {bars,name:result.meta?.shortName||null,okCount:1,total:1,source:'Yahoo Finance'};
+      }catch(e){}
+    }
+  }
+  throw new Error('所有資料來源均無法連線');
+}
+
+// ---------- 基本面：TWSE BWIBBU_d（本益比、殖利率、股價淨值比）----------
+async function loadFundamentals(stockNo){
+  const url='https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_d';
+  for(const p of PROXIES){
+    try{
+      const arr=await tryJSON(p,url,8000);
+      if(!Array.isArray(arr)) continue;
+      const r=arr.find(x=>(x.Code||x['證券代號'])===stockNo);
+      if(!r) return null;
+      return {
+        pe:   r.PEratio      || r['本益比']     || '—',
+        yld:  r.DividendYield|| r['殖利率']     || '—',
+        pb:   r.PBratio      || r['股價淨值比'] || '—',
+      };
+    }catch(e){}
+  }
+  return null;
+}
+
 function render(bars){
   lastBars = bars;
   candleSeries.setData(bars.map(b=>({time:b.time,open:b.open,high:b.high,low:b.low,close:b.close})));
@@ -713,15 +859,20 @@ function render(bars){
 
   applyOverlays();  // 依開關套用 MA / 布林通道
 
-  // 對齊兩張圖：用同一個邏輯範圍，避免各自 fitContent 造成左右錯位
+  // KD
+  const kdData=computeKD(bars,9);
+  kSeries.setData(kdData.k); dSeries.setData(kdData.d);
+  const lastK=kdData.k[kdData.k.length-1]?.value, lastD=kdData.d[kdData.d.length-1]?.value;
+
+  // MACD
+  const macdResult=computeMACD(bars,12,26,9);
+  macdHistSeries.setData(macdResult.hist);
+  macdLineSeries.setData(macdResult.macd);
+  signalSeries.setData(macdResult.signal);
+
+  // 對齊所有圖：fitContent 後透過已訂閱的 subscribeVisibleTimeRangeChange 自動同步
   priceChart.timeScale().fitContent();
-  requestAnimationFrame(()=>{
-    const lr = priceChart.timeScale().getVisibleLogicalRange();
-    if(lr){ atrChart.timeScale().setVisibleLogicalRange(lr); }
-    else { atrChart.timeScale().fitContent(); }
-    syncAxisWidth();
-  });
-  // 保險：繪製完成後再對齊一次軸寬（涵蓋高價股軸變寬的情況）
+  requestAnimationFrame(()=>{ syncAxisWidth(); });
   setTimeout(syncAxisWidth, 60);
 
   // 報價 + 統計
@@ -747,6 +898,8 @@ function render(bars){
     {k:'ATR(7)',v:lastA7?.toFixed(2)??'—'},
     {k:'ATR(14)',v:lastA14?.toFixed(2)??'—'},
     {k:'ATR(14) 佔股價', v:(atrPct?atrPct.toFixed(2):'—'), suf:'%'},
+    {k:'K 值',v:lastK?.toFixed(2)??'—'},
+    {k:'D 值',v:lastD?.toFixed(2)??'—'},
   ];
   document.getElementById('stats').innerHTML=stats.map(s=>
     `<div class="stat"><div class="k">${s.k}</div><div class="v">${s.v}<small>${s.suf||''}</small></div></div>`).join('');
@@ -862,23 +1015,33 @@ function setStatus(type,html){
 
 async function run(stockNo, months){
   try{
-    const {bars,name,okCount,total}=await loadData(stockNo,months);
-    const listed = STOCK_LIST.find(s=>s.code===stockNo);
-    const showName = (listed&&listed.name) || name || stockNo;
-    document.getElementById('stockName').innerHTML = `${showName} <span>${stockNo}</span>`;
-    document.querySelector('.ticker').textContent = `TWSE/TPEX · ${stockNo}`;
-    render(bars);
-    setStatus('ok', `✓ 已載入 ${showName}（${stockNo}）${bars.length} 個交易日，${okCount}/${total} 個月份成功。資料源：證交所。`);
-  }catch(e){
-    if(e.message==='PROXY_ALL_FAILED'){
-      setStatus('err',
-        `⚠ 所有公開資料通道都連不上（已各等 8 秒逾時）。<br>
-         這通常代表你的網路把公開 CORS 代理擋掉了（公司網路、校園網路或防火牆常見）。<br>
-         建議：①換成一般家用網路 / 手機熱點再開；或 ②用券商看盤軟體匯出近幾個月 OHLC 貼給我，我直接幫你畫。`);
-    } else {
-      setStatus('err',
-        `⚠ 抓取失敗：${e.message}。<br>可能是代理暫時不穩或盤後資料未更新。請按「載入」重試。`);
+    let result;
+    try{
+      result=await loadData(stockNo,months);
+    }catch(e){
+      if(e.message==='PROXY_ALL_FAILED'){
+        setStatus('loading','<span class="spin"></span>證交所代理失敗，切換至 Yahoo Finance 備援…');
+        result=await loadDataYahoo(stockNo,months);
+      } else { throw e; }
     }
+    const {bars,name,okCount,total,source='證交所'}=result;
+    const listed=STOCK_LIST.find(s=>s.code===stockNo);
+    const showName=(listed&&listed.name)||name||stockNo;
+    document.getElementById('stockName').innerHTML=`${showName} <span>${stockNo}</span>`;
+    document.querySelector('.ticker').textContent=`TWSE/TPEX · ${stockNo}`;
+    render(bars);
+    setStatus('ok',`✓ 已載入 ${showName}（${stockNo}）${bars.length} 個交易日。資料源：${source}。`);
+    // 非同步載入基本面（不阻塞圖表）
+    document.getElementById('fundamentals').style.display='none';
+    loadFundamentals(stockNo).then(f=>{
+      if(!f) return;
+      document.getElementById('stat-pe').textContent=f.pe||'—';
+      document.getElementById('stat-yield').textContent=f.yld?(f.yld+'%'):'—';
+      document.getElementById('stat-pb').textContent=f.pb||'—';
+      document.getElementById('fundamentals').style.display='';
+    }).catch(()=>{});
+  }catch(e){
+    setStatus('err',`⚠ 抓取失敗：${e.message}。<br>請按「載入」重試或換網路環境。`);
   }
 }
 
@@ -913,13 +1076,19 @@ function wireControls(){
     if(SELECTED) run(SELECTED, currentMonths);
   });
 
-  // 指標開關（即時套用，不需重新抓資料）
+  // 指標開關
   document.getElementById('toggles').addEventListener('click',e=>{
     const b=e.target.closest('.tg'); if(!b) return;
     const k=b.dataset.k;
     toggles[k]=!toggles[k];
     b.classList.toggle('on', toggles[k]);
-    applyOverlays();
+    if(k==='kd'){
+      document.getElementById('kdCard').style.display=toggles.kd?'':'none';
+    } else if(k==='macd'){
+      document.getElementById('macdCard').style.display=toggles.macd?'':'none';
+    } else {
+      applyOverlays();
+    }
   });
 
   const input=document.getElementById('stockInput');
@@ -999,7 +1168,7 @@ function wireControls(){
   document.getElementById('loadBtn').addEventListener('click',submitRaw);
 }
 
-let SELECTED='2301';
+let SELECTED='0050';
 
 (async function boot(){
   setStatus('loading','<span class="spin"></span>正在載入圖表元件…');
@@ -1023,17 +1192,18 @@ let SELECTED='2301';
       if(el) el.textContent=`可搜尋 ${n} 檔上市櫃股票`;
     }
   }).catch(()=>{});
-  // 初始顯示光寶科
-  const init=STOCK_LIST.find(s=>s.code==='2301');
-  document.getElementById('stockInput').value = init?`2301 ${init.name}`:'2301';
-  run('2301', 6);
+  // 初始顯示元大台灣50
+  const init=STOCK_LIST.find(s=>s.code==='0050');
+  document.getElementById('stockInput').value = init?`0050 ${init.name}`:'0050';
+  run('0050', 6);
 })();
 
-// 全域錯誤攔截：避免「Script error.」這類無資訊錯誤讓整頁卡死
+// 全域錯誤攔截：跨來源 script 錯誤只顯示「Script error.」且無法取得詳情，直接忽略
 window.addEventListener('error', ev=>{
+  if(!ev.message || ev.message==='Script error.' || ev.message==='Script error') return;
   const el=document.getElementById('status');
   if(el && el.className.indexOf('ok')===-1){
-    setStatus('err','⚠ 發生錯誤：'+(ev.message||'未知錯誤')+'。<br>若反覆出現，多半是網路擋了 CDN 或證交所代理；換網路或重新整理通常可解決。');
+    setStatus('err','⚠ 發生錯誤：'+ev.message+'。<br>請重新整理頁面；若持續發生請換網路環境再試。');
   }
 });
 </script>
