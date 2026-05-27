@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>0050 元大台灣50 · 技術分析</title>
+<title>ATR 技術指標參考</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a0e14'/%3E%3Cline x1='7' y1='5' x2='7' y2='27' stroke='%23ef5350' stroke-width='1.5'/%3E%3Crect x='4' y='9' width='6' height='12' rx='1' fill='%23ef5350'/%3E%3Cline x1='16' y1='3' x2='16' y2='22' stroke='%23ef5350' stroke-width='1.5'/%3E%3Crect x='13' y='6' width='6' height='11' rx='1' fill='%23ef5350'/%3E%3Cline x1='25' y1='9' x2='25' y2='27' stroke='%2326a69a' stroke-width='1.5'/%3E%3Crect x='22' y='13' width='6' height='9' rx='1' fill='%2326a69a'/%3E%3C/svg%3E">
 <style>
   :root{
     --bg:#0a0e14;
@@ -205,8 +206,8 @@
 <div class="wrap">
   <header>
     <div class="title-block">
-      <div class="ticker">TWSE · 0050</div>
-      <h1 id="stockName">元大台灣50 <span>0050</span></h1>
+      <div class="ticker">TWSE · 2330</div>
+      <h1 id="stockName">台積電 <span>TSMC</span></h1>
     </div>
     <div class="title-block" style="align-items:flex-end">
       <div class="quote">
@@ -229,14 +230,14 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="color:var(--txt-dim);flex:none">
           <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
         </svg>
-        <input id="stockInput" placeholder="輸入代碼或名稱，如 0050 或 台積電" autocomplete="off">
+        <input id="stockInput" placeholder="輸入代碼或名稱，如 2330 或 台積電" autocomplete="off">
         <button id="loadBtn">查詢</button>
       </div>
       <div id="suggest" class="suggest" hidden></div>
     </div>
   </div>
 
-  <div id="status" class="status loading"><span class="spin"></span>正在從證交所抓取 0050 元大台灣50歷史資料…</div>
+  <div id="status" class="status loading"><span class="spin"></span>正在從證交所抓取 2330 台積電歷史資料…</div>
 
   <div class="legend">
     <div class="item"><span class="swatch" style="background:var(--up)"></span>K 線（紅漲綠跌，台股慣例）</div>
@@ -1226,7 +1227,7 @@ function wireControls(){
   document.getElementById('loadBtn').addEventListener('click',submitRaw);
 }
 
-let SELECTED='0050';
+let SELECTED='2330';
 
 (async function boot(){
   setStatus('loading','<span class="spin"></span>正在載入圖表元件…');
@@ -1250,10 +1251,10 @@ let SELECTED='0050';
       if(el) el.textContent=`可搜尋 ${n} 檔上市櫃股票`;
     }
   }).catch(()=>{});
-  // 初始顯示元大台灣50
-  const init=STOCK_LIST.find(s=>s.code==='0050');
-  document.getElementById('stockInput').value = init?`0050 ${init.name}`:'0050';
-  run('0050', 6);
+  // 初始顯示台積電
+  const init=STOCK_LIST.find(s=>s.code==='2330');
+  document.getElementById('stockInput').value = init?`2330 ${init.name}`:'2330';
+  run('2330', 6);
 })();
 
 // 全域錯誤攔截：跨來源 script 錯誤只顯示「Script error.」且無法取得詳情，直接忽略
