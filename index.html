@@ -336,7 +336,8 @@ let priceChart, atrChart, kdChart, macdChart;
 let candleSeries, atr7Series, atr14Series, volSeries;
 let kSeries, dSeries;
 let macdHistSeries, macdLineSeries, signalSeries;
-let lastKDHtml='', lastMACDHtml='';
+let lastKDHtml='', lastMACDHtml='', lastATRHtml='';
+let sessionProxy = null;      // session 內記憶有效 proxy，避免切換股票時重新探測
 let maSeries = {};            // {ma5: series, ...}
 let bbUpper, bbMid, bbLower;  // 布林通道三線
 let lastBars = [];            // 保存最近一次 render 的資料，供切換指標時重算
@@ -429,7 +430,7 @@ function initCharts(){
     ohlcEl.innerHTML = `<span style="color:${dir}">開 ${d.open}　高 ${d.high}　低 ${d.low}　收 ${d.close}</span>`;
   }
   function showATR(v7,v14){
-    if(v7==null && v14==null){ atrEl.textContent=''; return; }
+    if(v7==null && v14==null){ atrEl.innerHTML=lastATRHtml; return; }
     atrEl.innerHTML =
       `<span style="color:${COLORS.atr7}">ATR(7) ${v7!=null?v7.toFixed(2):'—'}</span>` +
       `　<span style="color:${COLORS.atr14}">ATR(14) ${v14!=null?v14.toFixed(2):'—'}</span>`;
@@ -683,7 +684,7 @@ async function loadStockList(){
       if(Array.isArray(arr)){
         arr.forEach(r=>{
           const code=r.Code||r.證券代號, name=r.Name||r.證券名稱;
-          if(/^\d{4}$/.test(code) && name) map.set(code,{code,name:name.trim(),mk:'上市'});
+          if(/^\d{4,6}$/.test(code) && name) map.set(code,{code,name:name.trim(),mk:'上市'});
         });
         got=true;
       }
@@ -694,7 +695,7 @@ async function loadStockList(){
       if(Array.isArray(arr)){
         arr.forEach(r=>{
           const code=r.SecuritiesCompanyCode||r.Code||r.股票代號, name=r.CompanyName||r.Name||r.名稱;
-          if(/^\d{4}$/.test(code) && name) map.set(code,{code,name:String(name).trim(),mk:'上櫃'});
+          if(/^\d{4,6}$/.test(code) && name) map.set(code,{code,name:String(name).trim(),mk:'上櫃'});
         });
       }
     }catch(e){}
@@ -753,6 +754,46 @@ async function fetchViaProxy(proxy, stockNo, ymd, ms=8000){
   return json;
 }
 
+// ---------- localStorage 快取（已完結月份當日有效，當月 4 小時）----------
+const CACHE_NS='twse_v2';
+function cacheGet(key){
+  try{
+    const raw=localStorage.getItem(`${CACHE_NS}:${key}`);
+    if(!raw) return null;
+    const {val,exp}=JSON.parse(raw);
+    if(Date.now()>exp){ localStorage.removeItem(`${CACHE_NS}:${key}`); return null; }
+    return val;
+  }catch{ return null; }
+}
+function cacheSet(key,val,ttlMs){
+  try{
+    localStorage.setItem(`${CACHE_NS}:${key}`,JSON.stringify({val,exp:Date.now()+ttlMs}));
+  }catch{
+    // 容量不足時清掉最舊的一半 key
+    try{
+      const keys=Object.keys(localStorage).filter(k=>k.startsWith(CACHE_NS));
+      keys.sort().slice(0,Math.ceil(keys.length/2)).forEach(k=>localStorage.removeItem(k));
+      localStorage.setItem(`${CACHE_NS}:${key}`,JSON.stringify({val,exp:Date.now()+ttlMs}));
+    }catch{}
+  }
+}
+function cacheTTL(ymd){
+  const now=new Date();
+  const ym=`${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}`;
+  if(ymd.startsWith(ym)) return 4*3600_000;   // 當月：4 小時
+  const eod=new Date(now.getFullYear(),now.getMonth(),now.getDate(),23,59,59,999);
+  return Math.max(eod-Date.now(), 3600_000);   // 過去月份：當日午夜到期
+}
+
+// ---------- 並聯賽跑所有 proxy，取第一個成功的 ----------
+async function raceProxies(stockNo, ymd){
+  try{
+    return await Promise.any(
+      PROXIES.map(p=>fetchViaProxy(p,stockNo,ymd,8000).then(json=>({proxy:p,json})))
+    );
+  }catch{ return null; }
+}
+
 function rocToISO(roc){           // "115/05/02" -> "2026-05-02"
   const [y,m,d]=roc.split('/');
   return `${+y+1911}-${m}-${d}`;
@@ -760,29 +801,16 @@ function rocToISO(roc){           // "115/05/02" -> "2026-05-02"
 function num(s){ return parseFloat(String(s).replace(/,/g,'')); }
 
 async function loadData(stockNo, months){
-  const now = new Date();
+  const now=new Date();
   const reqs=[];
   for(let k=0;k<months;k++){
-    const d=new Date(now.getFullYear(), now.getMonth()-k, 1);
+    const d=new Date(now.getFullYear(),now.getMonth()-k,1);
     reqs.push(`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}01`);
   }
 
-  // 步驟一：用「最近的月份」測試各代理，找出第一個能用的（每個最多等 8 秒）
-  setStatus('loading', `<span class="spin"></span>正在尋找可用的資料通道…`);
-  let workingProxy=null, firstJson=null;
-  for(const p of PROXIES){
-    try{
-      firstJson = await fetchViaProxy(p, stockNo, reqs[0], 8000);
-      workingProxy = p;
-      break;
-    }catch(e){ /* 換下一個代理 */ }
-  }
-  if(!workingProxy) throw new Error('PROXY_ALL_FAILED');
-
-  // 步驟二：用同一個可用代理，並行抓其餘月份（顯示進度）
-  const rowsMap = new Map();
+  const rowsMap=new Map();
   let name=null, okCount=0;
-  const ingest=(j)=>{
+  const ingest=(j,ymd)=>{
     if(!j||!j.data) return;
     okCount++;
     if(j.title){ const mm=j.title.match(/\d{2,}\s+(\S+?)\s/); if(mm) name=mm[1]; }
@@ -792,22 +820,77 @@ async function loadData(stockNo, months){
       rowsMap.set(rocToISO(row[0]),{time:rocToISO(row[0]),open,high,low,close,volume:isNaN(vol)?0:Math.round(vol/1000)});
     }
   };
-  ingest(firstJson);
 
-  const rest = reqs.slice(1);
-  let done=1;
+  // ① 先從快取補齊已有的月份
+  const uncached=[];
+  for(const ymd of reqs){
+    const hit=cacheGet(`${stockNo}:${ymd}`);
+    if(hit){ ingest(hit,ymd); } else { uncached.push(ymd); }
+  }
+  if(!uncached.length){
+    if(!rowsMap.size) throw new Error('快取異常，請重新整理');
+    const bars=[...rowsMap.values()].sort((a,b)=>a.time<b.time?-1:1);
+    return {bars,name,okCount,total:reqs.length,source:'快取'};
+  }
+
+  setStatus('loading','<span class="spin"></span>正在尋找可用資料通道…');
+
+  // ② 確認 session proxy 仍可用，否則並聯賽跑找最快的
+  let wp=sessionProxy;
+  if(wp){
+    try{
+      const j=await fetchViaProxy(wp,stockNo,uncached[0],6000);
+      ingest(j,uncached[0]); cacheSet(`${stockNo}:${uncached[0]}`,j,cacheTTL(uncached[0]));
+      uncached.shift();
+    }catch{ wp=null; sessionProxy=null; }
+  }
+  if(!wp){
+    const r=await raceProxies(stockNo,uncached[0]);
+    if(!r) throw new Error('PROXY_ALL_FAILED');
+    wp=r.proxy; sessionProxy=wp;
+    ingest(r.json,uncached[0]); cacheSet(`${stockNo}:${uncached[0]}`,r.json,cacheTTL(uncached[0]));
+    uncached.shift();
+  }
+
+  // ③ 並行抓剩餘月份；個別失敗時依序嘗試其他 proxy（逐月 retry）
+  let done=reqs.length-uncached.length;
   const total=reqs.length;
-  setStatus('loading', `<span class="spin"></span>通道：${workingProxy.name}　已取得 ${done}/${total} 個月…`);
-  await Promise.allSettled(rest.map(ymd =>
-    fetchViaProxy(workingProxy, stockNo, ymd, 8000)
-      .then(j=>{ ingest(j); })
-      .catch(()=>{ /* 個別月份失敗略過 */ })
-      .finally(()=>{ done++; setStatus('loading', `<span class="spin"></span>通道：${workingProxy.name}　已取得 ${done}/${total} 個月…`); })
+  setStatus('loading',`<span class="spin"></span>通道：${wp.name}　已取得 ${done}/${total} 個月…`);
+  await Promise.allSettled(uncached.map(ymd=>
+    fetchViaProxy(wp,stockNo,ymd,8000)
+      .then(j=>{ ingest(j,ymd); cacheSet(`${stockNo}:${ymd}`,j,cacheTTL(ymd)); })
+      .catch(async ()=>{
+        // 主 proxy 失敗 → 依序試其他 proxy
+        for(const p of PROXIES){
+          if(p===wp) continue;
+          try{
+            const j=await fetchViaProxy(p,stockNo,ymd,6000);
+            ingest(j,ymd); cacheSet(`${stockNo}:${ymd}`,j,cacheTTL(ymd)); return;
+          }catch{}
+        }
+        // 所有 proxy 都失敗 → 靜默跳過此月
+      })
+      .finally(()=>{ done++; setStatus('loading',`<span class="spin"></span>通道：${wp.name}　已取得 ${done}/${total} 個月…`); })
   ));
 
-  if(rowsMap.size===0) throw new Error('未取得任何有效資料');
+  if(!rowsMap.size) throw new Error('未取得任何有效資料');
   const bars=[...rowsMap.values()].sort((a,b)=>a.time<b.time?-1:1);
-  return {bars, name, okCount, total};
+  return {bars,name,okCount,total};
+}
+
+// ---------- 三層資料源統一入口 ----------
+async function fetchWithFallback(stockNo, months){
+  // 來源 1：TWSE（有快取 + session proxy + 逐月 retry）
+  try{ return await loadData(stockNo,months); }
+  catch(e){ if(e.message!=='PROXY_ALL_FAILED') throw e; }
+
+  // 來源 2：Yahoo Finance
+  setStatus('loading','<span class="spin"></span>證交所代理失敗，切換至 Yahoo Finance…');
+  try{ return await loadDataYahoo(stockNo,months); }catch{}
+
+  // 來源 3：FinMind
+  setStatus('loading','<span class="spin"></span>切換至 FinMind 備援…');
+  return await loadDataFinMind(stockNo,months);
 }
 
 // ---------- Yahoo Finance 備援資料源 ----------
@@ -839,7 +922,36 @@ async function loadDataYahoo(stockNo, months){
       }catch(e){}
     }
   }
-  throw new Error('所有資料來源均無法連線');
+  throw new Error('Yahoo Finance 備援失敗');
+}
+
+// ---------- FinMind 備援資料源（免費 API，支援 CORS）----------
+async function loadDataFinMind(stockNo, months){
+  const end=new Date();
+  const start=new Date(end.getFullYear(),end.getMonth()-months,1);
+  const fmt=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const url=`https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockPrice&data_id=${stockNo}&start_date=${fmt(start)}&end_date=${fmt(end)}`;
+  const attempts=[
+    ()=>fetchTimeout(url,12000).then(r=>r.ok?r.json():Promise.reject('http err')),
+    ...PROXIES.map(p=>()=>tryJSON(p,url,12000))
+  ];
+  for(const attempt of attempts){
+    try{
+      const json=await attempt();
+      if(!json?.data?.length) continue;
+      const bars=json.data
+        .filter(r=>r.open&&r.close)
+        .map(r=>({
+          time:r.date,
+          open:+r.open, high:+r.max, low:+r.min, close:+r.close,
+          volume:Math.round((+r.Trading_Volume||0)/1000)
+        }));
+      if(bars.length<5) continue;
+      bars.sort((a,b)=>a.time<b.time?-1:1);
+      return {bars,name:null,okCount:1,total:1,source:'FinMind'};
+    }catch{}
+  }
+  throw new Error('所有資料來源均無法連線，請檢查網路後重試');
 }
 
 // ---------- 基本面：TWSE BWIBBU_d（本益比、殖利率、股價淨值比）----------
@@ -931,6 +1043,8 @@ function render(bars){
   const lastA7=a7[a7.length-1]?.value, lastA14=a14[a14.length-1]?.value;
   document.getElementById('lgAtr7').textContent=lastA7?.toFixed(2)??'—';
   document.getElementById('lgAtr14').textContent=lastA14?.toFixed(2)??'—';
+  lastATRHtml=`<span style="color:${COLORS.atr7}">ATR(7) ${lastA7?.toFixed(2)??'—'}</span>　<span style="color:${COLORS.atr14}">ATR(14) ${lastA14?.toFixed(2)??'—'}</span>`;
+  document.getElementById('atrReadout').innerHTML=lastATRHtml;
 
   const hi=Math.max(...bars.map(b=>b.high)), lo=Math.min(...bars.map(b=>b.low));
   const atrPct = lastA14 ? (lastA14/last.close*100) : null;
@@ -1058,15 +1172,7 @@ function setStatus(type,html){
 
 async function run(stockNo, months){
   try{
-    let result;
-    try{
-      result=await loadData(stockNo,months);
-    }catch(e){
-      if(e.message==='PROXY_ALL_FAILED'){
-        setStatus('loading','<span class="spin"></span>證交所代理失敗，切換至 Yahoo Finance 備援…');
-        result=await loadDataYahoo(stockNo,months);
-      } else { throw e; }
-    }
+    const result=await fetchWithFallback(stockNo,months);
     const {bars,name,okCount,total,source='證交所'}=result;
     const listed=STOCK_LIST.find(s=>s.code===stockNo);
     const showName=(listed&&listed.name)||name||stockNo;
@@ -1214,14 +1320,14 @@ function wireControls(){
     if(!e.target.closest('.search-box')) closeSuggest();
   });
 
-  // 直接送出（沒選下拉時）：抽出 4 位數代碼，或用名稱比對唯一結果
+  // 直接送出（沒選下拉時）：辨識 4~6 位全數字代碼（含 ETF），或用名稱比對
   function submitRaw(){
     const q=input.value.trim(); if(!q) return;
-    const codeMatch=q.match(/\d{4}/);
-    if(codeMatch){ SELECTED=codeMatch[0]; closeSuggest(); run(SELECTED,currentMonths); return; }
+    const firstWord=q.split(/\s+/)[0];
+    if(/^\d{4,6}$/.test(firstWord)){ SELECTED=firstWord; closeSuggest(); run(SELECTED,currentMonths); return; }
     const hits=searchStocks(q);
     if(hits.length){ choose(hits[0]); }
-    else setStatus('err','⚠ 找不到「'+q+'」。請輸入正確的股票代碼（4 位數）或名稱。');
+    else setStatus('err','⚠ 找不到「'+q+'」。請輸入 4~6 位股票代碼或名稱。');
   }
 
   document.getElementById('loadBtn').addEventListener('click',submitRaw);
