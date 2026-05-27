@@ -745,6 +745,9 @@ async function fetchViaProxy(proxy, stockNo, ymd, ms=8000){
   if(!res.ok) throw new Error('HTTP '+res.status);
   const txt = await res.text();
   const json = JSON.parse(txt);
+  // "Value is null" / "No data." = TWSE 本身尚無資料（月初、新股等），
+  // 屬正常業務情況，代理本身並未失敗 → 回傳空物件，讓 ingest 跳過即可
+  if(json.stat==='Value is null'||json.stat==='No data.'||json.stat==='查詢日期大於今日') return {data:null, stat:json.stat};
   if(json.stat && json.stat!=='OK') throw new Error(json.stat);
   if(!json.data) throw new Error('無資料');
   return json;
@@ -831,21 +834,31 @@ async function loadData(stockNo, months){
 
   setStatus('loading','<span class="spin"></span>正在尋找可用資料通道…');
 
+  // 輔助：有實際資料才寫快取（"Value is null" 空回應不寫，避免月初快取到無資料）
+  const tryCache=(key,j,ymd)=>{ if(j&&j.data) cacheSet(key,j,cacheTTL(ymd)); };
+
   // ② 確認 session proxy 仍可用，否則並聯賽跑找最快的
+  // 若最新一個月剛好無資料（月初），往前找第一個有資料的月份作為探測目標
+  let probeIdx=0;
   let wp=sessionProxy;
   if(wp){
     try{
       const j=await fetchViaProxy(wp,stockNo,uncached[0],6000);
-      ingest(j,uncached[0]); cacheSet(`${stockNo}:${uncached[0]}`,j,cacheTTL(uncached[0]));
+      ingest(j,uncached[0]); tryCache(`${stockNo}:${uncached[0]}`,j,uncached[0]);
       uncached.shift();
     }catch{ wp=null; sessionProxy=null; }
   }
   if(!wp){
-    const r=await raceProxies(stockNo,uncached[0]);
+    // 依序嘗試 uncached 中的月份，直到找到可確認 proxy 的回應
+    let r=null;
+    for(probeIdx=0; probeIdx<uncached.length; probeIdx++){
+      r=await raceProxies(stockNo,uncached[probeIdx]);
+      if(r) break;   // 成功（可能是有資料或是 Value is null 空回應，代理均算有效）
+    }
     if(!r) throw new Error('PROXY_ALL_FAILED');
     wp=r.proxy; sessionProxy=wp;
-    ingest(r.json,uncached[0]); cacheSet(`${stockNo}:${uncached[0]}`,r.json,cacheTTL(uncached[0]));
-    uncached.shift();
+    ingest(r.json,uncached[probeIdx]); tryCache(`${stockNo}:${uncached[probeIdx]}`,r.json,uncached[probeIdx]);
+    uncached.splice(probeIdx,1);  // 移除已探測的月份
   }
 
   // ③ 並行抓剩餘月份；個別失敗時依序嘗試其他 proxy（逐月 retry）
@@ -854,14 +867,14 @@ async function loadData(stockNo, months){
   setStatus('loading',`<span class="spin"></span>通道：${wp.name}　已取得 ${done}/${total} 個月…`);
   await Promise.allSettled(uncached.map(ymd=>
     fetchViaProxy(wp,stockNo,ymd,8000)
-      .then(j=>{ ingest(j,ymd); cacheSet(`${stockNo}:${ymd}`,j,cacheTTL(ymd)); })
+      .then(j=>{ ingest(j,ymd); tryCache(`${stockNo}:${ymd}`,j,ymd); })
       .catch(async ()=>{
         // 主 proxy 失敗 → 依序試其他 proxy
         for(const p of PROXIES){
           if(p===wp) continue;
           try{
             const j=await fetchViaProxy(p,stockNo,ymd,6000);
-            ingest(j,ymd); cacheSet(`${stockNo}:${ymd}`,j,cacheTTL(ymd)); return;
+            ingest(j,ymd); tryCache(`${stockNo}:${ymd}`,j,ymd); return;
           }catch{}
         }
         // 所有 proxy 都失敗 → 靜默跳過此月
@@ -878,10 +891,10 @@ async function loadData(stockNo, months){
 async function fetchWithFallback(stockNo, months){
   // 來源 1：TWSE（有快取 + session proxy + 逐月 retry）
   try{ return await loadData(stockNo,months); }
-  catch(e){ if(e.message!=='PROXY_ALL_FAILED') throw e; }
+  catch(e){ /* 任何 TWSE 失敗都嘗試備援，不再只限 PROXY_ALL_FAILED */ }
 
   // 來源 2：Yahoo Finance
-  setStatus('loading','<span class="spin"></span>證交所代理失敗，切換至 Yahoo Finance…');
+  setStatus('loading','<span class="spin"></span>證交所無資料，切換至 Yahoo Finance…');
   try{ return await loadDataYahoo(stockNo,months); }catch{}
 
   // 來源 3：FinMind
