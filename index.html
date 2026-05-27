@@ -359,13 +359,17 @@ function initCharts(){
     grid:{ vertLines:{color:COLORS.grid}, horzLines:{color:COLORS.grid} },
     rightPriceScale:{ borderColor:COLORS.border, minimumWidth:PRICE_AXIS_W, alignLabels:true },
     leftPriceScale:{ visible:false },
-    timeScale:{ borderColor:COLORS.border, timeVisible:false, rightOffset:2, fixLeftEdge:true, fixRightEdge:true },
+    // fixLeftEdge / fixRightEdge 只留給 priceChart；指標圖若加上會限制 setVisibleRange
+    // 導致 MACD（暖身 35 根）等資料起點較晚的圖無法同步縮放
+    timeScale:{ borderColor:COLORS.border, timeVisible:false, rightOffset:2 },
     crosshair:{ mode:0,
       vertLine:{color:'#3a4658',width:1,style:2,labelBackgroundColor:'#2a3340'},
       horzLine:{color:'#3a4658',width:1,style:2,labelBackgroundColor:'#2a3340'} }
   };
 
   priceChart = LightweightCharts.createChart(document.getElementById('priceChart'), common);
+  // 只有主K線圖才需要 fixEdge，防止使用者捲動超出資料範圍
+  priceChart.timeScale().applyOptions({ fixLeftEdge:true, fixRightEdge:true });
 
   // 布林通道（先建立，使其在 K 線下層）：上下軌較淡，中軌虛線
   bbUpper = priceChart.addLineSeries({ color:COLORS.bbBand, lineWidth:1, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false });
