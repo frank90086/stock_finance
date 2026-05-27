@@ -345,6 +345,10 @@ let currentMonths = 6;
 // 跨圖查值：以時間字串為 key，讓各圖互查當日數值
 let atrMap7 = new Map(), atrMap14 = new Map(), ohlcMap = new Map();
 let kdMap = new Map(), dMap = new Map(), macdMap = new Map(), signalMap = new Map();
+// 各指標圖相對 priceChart 的 bar 偏移量（因暖身期而少的根數）
+const barOffsets = new Map();
+// render() 期間設 true，避免 setData 觸發的中間 range 事件互相干擾
+let loading = false;
 
 // 指標開關狀態（預設：20MA + 布林通道 + KD + MACD 開）
 const toggles = {
@@ -359,17 +363,13 @@ function initCharts(){
     grid:{ vertLines:{color:COLORS.grid}, horzLines:{color:COLORS.grid} },
     rightPriceScale:{ borderColor:COLORS.border, minimumWidth:PRICE_AXIS_W, alignLabels:true },
     leftPriceScale:{ visible:false },
-    // fixLeftEdge / fixRightEdge 只留給 priceChart；指標圖若加上會限制 setVisibleRange
-    // 導致 MACD（暖身 35 根）等資料起點較晚的圖無法同步縮放
-    timeScale:{ borderColor:COLORS.border, timeVisible:false, rightOffset:2 },
+    timeScale:{ borderColor:COLORS.border, timeVisible:false, rightOffset:2, fixLeftEdge:true, fixRightEdge:true },
     crosshair:{ mode:0,
       vertLine:{color:'#3a4658',width:1,style:2,labelBackgroundColor:'#2a3340'},
       horzLine:{color:'#3a4658',width:1,style:2,labelBackgroundColor:'#2a3340'} }
   };
 
   priceChart = LightweightCharts.createChart(document.getElementById('priceChart'), common);
-  // 只有主K線圖才需要 fixEdge，防止使用者捲動超出資料範圍
-  priceChart.timeScale().applyOptions({ fixLeftEdge:true, fixRightEdge:true });
 
   // 布林通道（先建立，使其在 K 線下層）：上下軌較淡，中軌虛線
   bbUpper = priceChart.addLineSeries({ color:COLORS.bbBand, lineWidth:1, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false });
@@ -396,12 +396,15 @@ function initCharts(){
   volSeries.priceScale().applyOptions({ scaleMargins:{top:0.82, bottom:0} });
 
   atrChart = LightweightCharts.createChart(document.getElementById('atrChart'), common);
+  // 指標圖不能有 fixLeftEdge，否則 setVisibleLogicalRange 傳入負值（暖身期空白區）會被夾掉
+  atrChart.timeScale().applyOptions({ fixLeftEdge:false, fixRightEdge:false });
   const atrFmt = { priceFormat:{ type:'price', precision:2, minMove:0.01 }, priceLineVisible:false, lastValueVisible:false };
   atr7Series  = atrChart.addLineSeries({ color:COLORS.atr7,  lineWidth:2, ...atrFmt });
   atr14Series = atrChart.addLineSeries({ color:COLORS.atr14, lineWidth:2, ...atrFmt });
 
   // KD 圖
   kdChart = LightweightCharts.createChart(document.getElementById('kdChart'), common);
+  kdChart.timeScale().applyOptions({ fixLeftEdge:false, fixRightEdge:false });
   const kdFmt = { priceFormat:{ type:'price', precision:2, minMove:0.01 }, priceLineVisible:false, lastValueVisible:false };
   kSeries = kdChart.addLineSeries({ color:COLORS.kLine, lineWidth:2, ...kdFmt });
   dSeries = kdChart.addLineSeries({ color:COLORS.dLine, lineWidth:2, ...kdFmt });
@@ -411,19 +414,30 @@ function initCharts(){
   // MACD 圖（priceFormat 與 KD 一致，避免自動精度產生更寬的標籤）
   const macdFmt = { priceFormat:{ type:'price', precision:2, minMove:0.01 }, priceLineVisible:false, lastValueVisible:false };
   macdChart = LightweightCharts.createChart(document.getElementById('macdChart'), common);
+  macdChart.timeScale().applyOptions({ fixLeftEdge:false, fixRightEdge:false });
   macdHistSeries = macdChart.addHistogramSeries({ ...macdFmt });
   macdLineSeries = macdChart.addLineSeries({ color:COLORS.macdLine,   lineWidth:1.5, ...macdFmt });
   signalSeries   = macdChart.addLineSeries({ color:COLORS.signalLine, lineWidth:1.5, ...macdFmt });
   macdLineSeries.createPriceLine({ price:0, color:'rgba(200,200,200,.18)', lineWidth:1, lineStyle:0, axisLabelVisible:false });
 
-  // 同步所有圖的時間軸 + 右軸寬度
+  // 同步所有圖的時間軸：改用 subscribeVisibleLogicalRangeChange
+  // 優點：不依賴時間範圍，而是以「可見根數 + 右緣偏移」來同步，
+  //       避免各圖暖身期不同導致 fixLeftEdge 夾住範圍的問題
   const allCharts=[priceChart,atrChart,kdChart,macdChart];
   allCharts.forEach(src=>{
-    src.timeScale().subscribeVisibleTimeRangeChange(r=>{
-      if(syncing||!r) return; syncing=true;
-      allCharts.forEach(dst=>{ if(dst!==src) try{ dst.timeScale().setVisibleRange(r); }catch(e){} });
+    src.timeScale().subscribeVisibleLogicalRangeChange(r=>{
+      if(syncing || loading || !r) return; syncing=true;
+      const srcOff = barOffsets.get(src) ?? 0;
+      allCharts.forEach(dst=>{
+        if(dst===src || !dst) return;
+        const dstOff = barOffsets.get(dst) ?? 0;
+        // 將 src 的邏輯範圍轉換到以 priceChart bar 0 為基準，再投影到 dst
+        try{ dst.timeScale().setVisibleLogicalRange({
+          from: r.from + srcOff - dstOff,
+          to:   r.to   + srcOff - dstOff
+        }); }catch(e){}
+      });
       syncing=false;
-      // 時間軸更動後右軸寬度可能跟著變化，需補一次同步
       requestAnimationFrame(syncAxisWidth);
     });
   });
@@ -1018,6 +1032,7 @@ async function loadFundamentals(stockNo){
 
 function render(bars){
   lastBars = bars;
+  loading = true;   // 抑制 setData 期間各圖自動 fit 觸發的 range 事件
   candleSeries.setData(bars.map(b=>({time:b.time,open:b.open,high:b.high,low:b.low,close:b.close})));
   volSeries.setData(bars.map(b=>({time:b.time, value:b.volume,
     color: b.close>=b.open ? 'rgba(239,83,80,.22)' : 'rgba(38,166,154,.22)'})));
@@ -1056,8 +1071,14 @@ function render(bars){
   lastMACDHtml=`<span style="color:${COLORS.macdLine}">DIF ${lastM?.toFixed(3)??'—'}</span>　<span style="color:${COLORS.signalLine}">DEA ${lastS!=null?lastS.toFixed(3):'—'}</span>`;
   document.getElementById('macdReadout').innerHTML=lastMACDHtml;
 
-  // 對齊所有圖：fitContent 後透過已訂閱的 subscribeVisibleTimeRangeChange 自動同步
-  priceChart.timeScale().fitContent();
+  // 各圖相對 priceChart 的 bar 偏移（因暖身期造成），用於 logical range 轉換
+  barOffsets.set(priceChart, 0);
+  barOffsets.set(atrChart,   bars.length - a14.length);
+  barOffsets.set(kdChart,    bars.length - kdData.k.length);
+  barOffsets.set(macdChart,  bars.length - macdResult.macd.length);
+
+  loading = false;  // 開放事件同步
+  priceChart.timeScale().fitContent();  // 觸發 subscribeVisibleLogicalRangeChange → 同步各圖
   // 多個延遲呼叫：chart 在不同時間點完成重繪，確保右軸寬度最終一致
   [0, 50, 120, 250, 500].forEach(ms => setTimeout(syncAxisWidth, ms));
 
