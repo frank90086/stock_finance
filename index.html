@@ -411,13 +411,15 @@ function initCharts(){
   signalSeries   = macdChart.addLineSeries({ color:COLORS.signalLine, lineWidth:1.5, priceLineVisible:false, lastValueVisible:false });
   macdLineSeries.createPriceLine({ price:0, color:'rgba(200,200,200,.18)', lineWidth:1, lineStyle:0, axisLabelVisible:false });
 
-  // 同步所有圖的時間軸
+  // 同步所有圖的時間軸 + 右軸寬度
   const allCharts=[priceChart,atrChart,kdChart,macdChart];
   allCharts.forEach(src=>{
     src.timeScale().subscribeVisibleTimeRangeChange(r=>{
       if(syncing||!r) return; syncing=true;
       allCharts.forEach(dst=>{ if(dst!==src) try{ dst.timeScale().setVisibleRange(r); }catch(e){} });
       syncing=false;
+      // 時間軸更動後右軸寬度可能跟著變化，需補一次同步
+      requestAnimationFrame(syncAxisWidth);
     });
   });
 
@@ -496,17 +498,17 @@ function initCharts(){
     atrChart.applyOptions({width:document.getElementById('atrChart').clientWidth});
     if(kdChart)   kdChart.applyOptions({width:document.getElementById('kdChart').clientWidth});
     if(macdChart) macdChart.applyOptions({width:document.getElementById('macdChart').clientWidth});
-    setTimeout(syncAxisWidth, 60);
+    [60, 180, 400].forEach(ms => setTimeout(syncAxisWidth, ms));
   });
 }
 
 let syncing=false;
 
-// 對齊所有圖右側價格軸寬度
+// 對齊所有圖右側價格軸寬度（確保繪圖區左右起點一致）
 function syncAxisWidth(){
-  if(!priceChart||!atrChart) return;
+  const charts=[priceChart,atrChart,kdChart,macdChart].filter(Boolean);
+  if(charts.length<2) return;
   try{
-    const charts=[priceChart,atrChart,kdChart,macdChart].filter(Boolean);
     const widths=charts.map(c=>{ try{ return c.priceScale('right').width()||0; }catch(e){ return 0; } });
     const w=Math.max(...widths,76);
     charts.forEach((c,i)=>{ if(Math.abs(widths[i]-w)>0.5) c.priceScale('right').applyOptions({minimumWidth:w}); });
@@ -1042,8 +1044,8 @@ function render(bars){
 
   // 對齊所有圖：fitContent 後透過已訂閱的 subscribeVisibleTimeRangeChange 自動同步
   priceChart.timeScale().fitContent();
-  requestAnimationFrame(()=>{ syncAxisWidth(); });
-  setTimeout(syncAxisWidth, 60);
+  // 多個延遲呼叫：chart 在不同時間點完成重繪，確保右軸寬度最終一致
+  [0, 50, 120, 250, 500].forEach(ms => setTimeout(syncAxisWidth, ms));
 
   // 報價 + 統計
   const last=bars[bars.length-1], prev=bars[bars.length-2]||last;
