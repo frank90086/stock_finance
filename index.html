@@ -523,6 +523,20 @@ function initCharts(){
 
 let syncing=false;
 
+// 主動從 priceChart 推算並強制同步指標圖的 logicalRange（用於 render 後初始化）
+function forceSync(){
+  if(syncing || !priceChart) return;
+  const r = priceChart.timeScale().getVisibleLogicalRange();
+  if(!r) return;
+  syncing=true;
+  [atrChart, kdChart, macdChart].forEach(dst=>{
+    if(!dst) return;
+    const dstOff = barOffsets.get(dst) ?? 0;
+    try{ dst.timeScale().setVisibleLogicalRange({ from: r.from - dstOff, to: r.to - dstOff }); }catch(e){}
+  });
+  syncing=false;
+}
+
 // 對齊所有圖右側價格軸寬度（確保繪圖區左右起點一致）
 // retries：若本次有修改就繼續 rAF retry，直到穩定或次數耗盡
 function syncAxisWidth(retries=10){
@@ -1078,9 +1092,10 @@ function render(bars){
   barOffsets.set(macdChart,  bars.length - macdResult.macd.length);
 
   loading = false;  // 開放事件同步
-  priceChart.timeScale().fitContent();  // 觸發 subscribeVisibleLogicalRangeChange → 同步各圖
-  // 多個延遲呼叫：chart 在不同時間點完成重繪，確保右軸寬度最終一致
-  [0, 50, 120, 250, 500].forEach(ms => setTimeout(syncAxisWidth, ms));
+  priceChart.timeScale().fitContent();
+  // fitContent() 非同步套用；用 rAF + 多個 setTimeout 強制在 layout 穩定後同步各圖
+  requestAnimationFrame(()=>{ forceSync(); syncAxisWidth(10); });
+  [80, 200, 400].forEach(ms => setTimeout(()=>{ forceSync(); syncAxisWidth(); }, ms));
 
   // 報價 + 統計
   const last=bars[bars.length-1], prev=bars[bars.length-2]||last;
