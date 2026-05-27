@@ -342,8 +342,9 @@ let maSeries = {};            // {ma5: series, ...}
 let bbUpper, bbMid, bbLower;  // 布林通道三線
 let lastBars = [];            // 保存最近一次 render 的資料，供切換指標時重算
 let currentMonths = 6;
-// 跨圖查值：以時間字串為 key，讓上圖能查當日 ATR、下圖能查當日 OHLC
+// 跨圖查值：以時間字串為 key，讓各圖互查當日數值
 let atrMap7 = new Map(), atrMap14 = new Map(), ohlcMap = new Map();
+let kdMap = new Map(), dMap = new Map(), macdMap = new Map(), signalMap = new Map();
 
 // 指標開關狀態（預設：20MA + 布林通道 + KD + MACD 開）
 const toggles = {
@@ -437,62 +438,57 @@ function initCharts(){
   }
 
   let syncingCH=false;
-  priceChart.subscribeCrosshairMove(p=>{
-    // 讀數：OHLC
-    const d = p.time ? p.seriesData.get(candleSeries) : null;
-    showOHLC(d);
-    // 同步顯示該日 ATR 讀數
-    if(p.time){
-      const v7 = p.seriesData.get(atr7Series)?.value ?? atrMap7.get(String(p.time));
-      const v14= p.seriesData.get(atr14Series)?.value ?? atrMap14.get(String(p.time));
-      showATR(v7??null, v14??null);
-    }else showATR(null,null);
-    // 連動下圖十字游標（傳當日 ATR(14) 值，使水平線落在正確高度）
-    if(syncingCH) return; syncingCH=true;
-    if(p.time!==undefined && p.point){
-      const v14 = atrMap14.get(String(p.time));
-      atrChart.setCrosshairPosition(v14!=null?v14:0, p.time, atr14Series);
+
+  // 統一更新所有讀數 readout（time 有值：顯示當日，time 無值：恢復最後數值）
+  function updateAllReadouts(time){
+    const t = time ? String(time) : null;
+    if(t){
+      // OHLC
+      showOHLC(ohlcMap.get(t)||null);
+      // ATR
+      showATR(atrMap7.get(t)??null, atrMap14.get(t)??null);
+      // KD
+      const k=kdMap.get(t), dv=dMap.get(t);
+      document.getElementById('kdReadout').innerHTML=
+        `<span style="color:${COLORS.kLine}">K ${k!=null?k.toFixed(2):'—'}</span>　<span style="color:${COLORS.dLine}">D ${dv!=null?dv.toFixed(2):'—'}</span>`;
+      // MACD
+      const m=macdMap.get(t), s=signalMap.get(t);
+      document.getElementById('macdReadout').innerHTML=
+        `<span style="color:${COLORS.macdLine}">DIF ${m!=null?m.toFixed(3):'—'}</span>　<span style="color:${COLORS.signalLine}">DEA ${s!=null?s.toFixed(3):'—'}</span>`;
     }else{
-      atrChart.clearCrosshairPosition();
+      showOHLC(null); showATR(null,null);
+      document.getElementById('kdReadout').innerHTML=lastKDHtml;
+      document.getElementById('macdReadout').innerHTML=lastMACDHtml;
     }
-    syncingCH=false;
-  });
+  }
 
-  atrChart.subscribeCrosshairMove(p=>{
-    // 讀數：ATR
-    if(p.time){
-      const v7 = p.seriesData.get(atr7Series)?.value;
-      const v14= p.seriesData.get(atr14Series)?.value;
-      showATR(v7??null, v14??null);
-      // 同步顯示該日 OHLC
-      const d = ohlcMap.get(String(p.time));
-      showOHLC(d||null);
-    }else{ showATR(null,null); showOHLC(null); }
-    // 連動上圖十字游標（傳當日收盤價，使水平線落在正確高度）
+  // 統一同步其他三圖十字線位置
+  function syncAllCrosshairs(sourceChart, time){
     if(syncingCH) return; syncingCH=true;
-    if(p.time!==undefined && p.point){
-      const d = ohlcMap.get(String(p.time));
-      priceChart.setCrosshairPosition(d?d.close:0, p.time, candleSeries);
-    }else{
-      priceChart.clearCrosshairPosition();
-    }
+    const targets=[
+      { chart:priceChart,  series:candleSeries,    getVal:t=>ohlcMap.get(t)?.close   },
+      { chart:atrChart,    series:atr14Series,      getVal:t=>atrMap14.get(t)         },
+      { chart:kdChart,     series:kSeries,          getVal:t=>kdMap.get(t)            },
+      { chart:macdChart,   series:macdLineSeries,   getVal:t=>macdMap.get(t)          },
+    ];
+    targets.forEach(({chart, series, getVal})=>{
+      if(chart===sourceChart || !chart || !series) return;
+      if(time!==undefined){
+        const val=getVal(String(time));
+        chart.setCrosshairPosition(val!=null?val:0, time, series);
+      }else{
+        chart.clearCrosshairPosition();
+      }
+    });
     syncingCH=false;
-  });
+  }
 
-  kdChart.subscribeCrosshairMove(p=>{
-    const el=document.getElementById('kdReadout');
-    if(p.time){
-      const k=p.seriesData.get(kSeries)?.value, d=p.seriesData.get(dSeries)?.value;
-      el.innerHTML=`<span style="color:${COLORS.kLine}">K ${k!=null?k.toFixed(2):'—'}</span>　<span style="color:${COLORS.dLine}">D ${d!=null?d.toFixed(2):'—'}</span>`;
-    }else{ el.innerHTML=lastKDHtml; }
-  });
-
-  macdChart.subscribeCrosshairMove(p=>{
-    const el=document.getElementById('macdReadout');
-    if(p.time){
-      const m=p.seriesData.get(macdLineSeries)?.value, s=p.seriesData.get(signalSeries)?.value;
-      el.innerHTML=`<span style="color:${COLORS.macdLine}">DIF ${m!=null?m.toFixed(3):'—'}</span>　<span style="color:${COLORS.signalLine}">DEA ${s!=null?s.toFixed(3):'—'}</span>`;
-    }else{ el.innerHTML=lastMACDHtml; }
+  // 四圖統一訂閱
+  [priceChart, atrChart, kdChart, macdChart].forEach(chart=>{
+    chart.subscribeCrosshairMove(p=>{
+      updateAllReadouts(p.time);
+      syncAllCrosshairs(chart, p.time);
+    });
   });
 
   window.addEventListener('resize', ()=>{
@@ -1011,6 +1007,9 @@ function render(bars){
   // KD
   const kdData=computeKD(bars,9);
   kSeries.setData(kdData.k); dSeries.setData(kdData.d);
+  kdMap.clear(); dMap.clear();
+  kdData.k.forEach(x=>kdMap.set(String(x.time), x.value));
+  kdData.d.forEach(x=>dMap.set(String(x.time), x.value));
   const lastK=kdData.k[kdData.k.length-1]?.value, lastD=kdData.d[kdData.d.length-1]?.value;
   lastKDHtml=`<span style="color:${COLORS.kLine}">K ${lastK?.toFixed(2)??'—'}</span>　<span style="color:${COLORS.dLine}">D ${lastD?.toFixed(2)??'—'}</span>`;
   document.getElementById('kdReadout').innerHTML=lastKDHtml;
@@ -1020,9 +1019,12 @@ function render(bars){
   macdHistSeries.setData(macdResult.hist);
   macdLineSeries.setData(macdResult.macd);
   signalSeries.setData(macdResult.signal);
+  macdMap.clear(); signalMap.clear();
+  macdResult.macd.forEach(x=>macdMap.set(String(x.time), x.value));
+  macdResult.signal.forEach(x=>signalMap.set(String(x.time), x.value));
   const lastM=macdResult.macd[macdResult.macd.length-1]?.value;
   const lastS=macdResult.signal[macdResult.signal.length-1]?.value;
-  lastMACDHtml=`<span style="color:${COLORS.macdLine}">DIF ${lastM?.toFixed(3)??'—'}</span>　<span style="color:${COLORS.signalLine}">DEA ${lastS?.toFixed(3)??'—'}</span>`;
+  lastMACDHtml=`<span style="color:${COLORS.macdLine}">DIF ${lastM?.toFixed(3)??'—'}</span>　<span style="color:${COLORS.signalLine}">DEA ${lastS!=null?lastS.toFixed(3):'—'}</span>`;
   document.getElementById('macdReadout').innerHTML=lastMACDHtml;
 
   // 對齊所有圖：fitContent 後透過已訂閱的 subscribeVisibleTimeRangeChange 自動同步
