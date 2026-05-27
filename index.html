@@ -280,11 +280,12 @@
 
   <div class="stats" id="stats"></div>
 
-  <div id="fundamentals" style="display:none">
+  <div id="fundamentals">
+    <div style="font-size:12px;color:var(--txt-dim);margin:14px 0 6px;letter-spacing:.5px;text-transform:uppercase">基本面參考（當日）</div>
     <div class="fund-grid">
-      <div class="fund-card"><div class="fk">本益比 P/E</div><div class="fv" id="stat-pe">—</div></div>
-      <div class="fund-card"><div class="fk">殖利率 Yield</div><div class="fv" id="stat-yield">—</div></div>
-      <div class="fund-card"><div class="fk">股價淨值比 P/B</div><div class="fv" id="stat-pb">—</div></div>
+      <div class="fund-card"><div class="fk">本益比 P/E</div><div class="fv" id="stat-pe" style="color:var(--txt-dim);font-size:14px">載入中…</div></div>
+      <div class="fund-card"><div class="fk">殖利率 Yield</div><div class="fv" id="stat-yield" style="color:var(--txt-dim);font-size:14px">載入中…</div></div>
+      <div class="fund-card"><div class="fk">股價淨值比 P/B</div><div class="fv" id="stat-pb" style="color:var(--txt-dim);font-size:14px">載入中…</div></div>
     </div>
   </div>
 
@@ -826,17 +827,35 @@ async function loadDataYahoo(stockNo, months){
 // ---------- 基本面：TWSE BWIBBU_d（本益比、殖利率、股價淨值比）----------
 async function loadFundamentals(stockNo){
   const url='https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_d';
+  function parse(arr){
+    if(!Array.isArray(arr)) return null;
+    // 欄位名稱依 TWSE OpenAPI 版本略有差異，兩種都接受
+    const r=arr.find(x=>(x.Code||x['證券代號']||'').trim()===stockNo.trim());
+    if(!r) return null;
+    const pe  = r.PEratio       ?? r['本益比']      ?? '';
+    const yld = r.DividendYield ?? r['殖利率(%)']   ?? r['殖利率'] ?? '';
+    const pb  = r.PBratio       ?? r['股價淨值比']  ?? '';
+    return {
+      pe:  String(pe).trim()  || '—',
+      yld: String(yld).trim() || '—',
+      pb:  String(pb).trim()  || '—',
+    };
+  }
+
+  // 1. 直接呼叫（TWSE OpenAPI 有 CORS 標頭，不需代理）
+  try{
+    const res=await fetchTimeout(url, 12000);
+    if(res.ok){
+      const result=parse(await res.json());
+      if(result) return result;
+    }
+  }catch(e){}
+
+  // 2. 透過 CORS 代理 fallback
   for(const p of PROXIES){
     try{
-      const arr=await tryJSON(p,url,8000);
-      if(!Array.isArray(arr)) continue;
-      const r=arr.find(x=>(x.Code||x['證券代號'])===stockNo);
-      if(!r) return null;
-      return {
-        pe:   r.PEratio      || r['本益比']     || '—',
-        yld:  r.DividendYield|| r['殖利率']     || '—',
-        pb:   r.PBratio      || r['股價淨值比'] || '—',
-      };
+      const result=parse(await tryJSON(p,url,12000));
+      if(result) return result;
     }catch(e){}
   }
   return null;
@@ -1032,14 +1051,30 @@ async function run(stockNo, months){
     render(bars);
     setStatus('ok',`✓ 已載入 ${showName}（${stockNo}）${bars.length} 個交易日。資料源：${source}。`);
     // 非同步載入基本面（不阻塞圖表）
-    document.getElementById('fundamentals').style.display='none';
+    const setFund=(id,txt,ok=true)=>{
+      const el=document.getElementById(id);
+      el.textContent=txt;
+      el.style.color=ok?'':'var(--txt-dim)';
+      el.style.fontSize=ok?'':'13px';
+    };
+    setFund('stat-pe','載入中…',false);
+    setFund('stat-yield','載入中…',false);
+    setFund('stat-pb','載入中…',false);
     loadFundamentals(stockNo).then(f=>{
-      if(!f) return;
-      document.getElementById('stat-pe').textContent=f.pe||'—';
-      document.getElementById('stat-yield').textContent=f.yld?(f.yld+'%'):'—';
-      document.getElementById('stat-pb').textContent=f.pb||'—';
-      document.getElementById('fundamentals').style.display='';
-    }).catch(()=>{});
+      if(!f){
+        setFund('stat-pe','—',false);
+        setFund('stat-yield','—',false);
+        setFund('stat-pb','—',false);
+        return;
+      }
+      setFund('stat-pe', f.pe);
+      setFund('stat-yield', f.yld!=='—'?f.yld+'%':f.yld);
+      setFund('stat-pb', f.pb);
+    }).catch(()=>{
+      setFund('stat-pe','無法取得',false);
+      setFund('stat-yield','無法取得',false);
+      setFund('stat-pb','無法取得',false);
+    });
   }catch(e){
     setStatus('err',`⚠ 抓取失敗：${e.message}。<br>請按「載入」重試或換網路環境。`);
   }
