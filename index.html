@@ -335,6 +335,7 @@ let priceChart, atrChart, kdChart, macdChart;
 let candleSeries, atr7Series, atr14Series, volSeries;
 let kSeries, dSeries;
 let macdHistSeries, macdLineSeries, signalSeries;
+let lastKDHtml='', lastMACDHtml='';
 let maSeries = {};            // {ma5: series, ...}
 let bbUpper, bbMid, bbLower;  // 布林通道三線
 let lastBars = [];            // 保存最近一次 render 的資料，供切換指標時重算
@@ -388,23 +389,23 @@ function initCharts(){
   volSeries.priceScale().applyOptions({ scaleMargins:{top:0.82, bottom:0} });
 
   atrChart = LightweightCharts.createChart(document.getElementById('atrChart'), common);
-  const atrFmt = { priceFormat:{ type:'price', precision:2, minMove:0.01 }, priceLineVisible:false };
-  atr7Series  = atrChart.addLineSeries({ color:COLORS.atr7,  lineWidth:2, title:'ATR(7)',  ...atrFmt });
-  atr14Series = atrChart.addLineSeries({ color:COLORS.atr14, lineWidth:2, title:'ATR(14)', ...atrFmt });
+  const atrFmt = { priceFormat:{ type:'price', precision:2, minMove:0.01 }, priceLineVisible:false, lastValueVisible:false };
+  atr7Series  = atrChart.addLineSeries({ color:COLORS.atr7,  lineWidth:2, ...atrFmt });
+  atr14Series = atrChart.addLineSeries({ color:COLORS.atr14, lineWidth:2, ...atrFmt });
 
   // KD 圖
   kdChart = LightweightCharts.createChart(document.getElementById('kdChart'), common);
-  const kdFmt = { priceFormat:{ type:'price', precision:2, minMove:0.01 }, priceLineVisible:false, lastValueVisible:true };
-  kSeries = kdChart.addLineSeries({ color:COLORS.kLine, lineWidth:2, title:'K', ...kdFmt });
-  dSeries = kdChart.addLineSeries({ color:COLORS.dLine, lineWidth:2, title:'D', ...kdFmt });
+  const kdFmt = { priceFormat:{ type:'price', precision:2, minMove:0.01 }, priceLineVisible:false, lastValueVisible:false };
+  kSeries = kdChart.addLineSeries({ color:COLORS.kLine, lineWidth:2, ...kdFmt });
+  dSeries = kdChart.addLineSeries({ color:COLORS.dLine, lineWidth:2, ...kdFmt });
   kSeries.createPriceLine({ price:80, color:'rgba(200,200,200,.18)', lineWidth:1, lineStyle:2, axisLabelVisible:false });
   kSeries.createPriceLine({ price:20, color:'rgba(200,200,200,.18)', lineWidth:1, lineStyle:2, axisLabelVisible:false });
 
   // MACD 圖
   macdChart = LightweightCharts.createChart(document.getElementById('macdChart'), common);
   macdHistSeries = macdChart.addHistogramSeries({ priceLineVisible:false, lastValueVisible:false });
-  macdLineSeries = macdChart.addLineSeries({ color:COLORS.macdLine,   lineWidth:1.5, priceLineVisible:false, lastValueVisible:true,  title:'MACD' });
-  signalSeries   = macdChart.addLineSeries({ color:COLORS.signalLine, lineWidth:1.5, priceLineVisible:false, lastValueVisible:true,  title:'Signal' });
+  macdLineSeries = macdChart.addLineSeries({ color:COLORS.macdLine,   lineWidth:1.5, priceLineVisible:false, lastValueVisible:false });
+  signalSeries   = macdChart.addLineSeries({ color:COLORS.signalLine, lineWidth:1.5, priceLineVisible:false, lastValueVisible:false });
   macdLineSeries.createPriceLine({ price:0, color:'rgba(200,200,200,.18)', lineWidth:1, lineStyle:0, axisLabelVisible:false });
 
   // 同步所有圖的時間軸
@@ -474,6 +475,22 @@ function initCharts(){
       priceChart.clearCrosshairPosition();
     }
     syncingCH=false;
+  });
+
+  kdChart.subscribeCrosshairMove(p=>{
+    const el=document.getElementById('kdReadout');
+    if(p.time){
+      const k=p.seriesData.get(kSeries)?.value, d=p.seriesData.get(dSeries)?.value;
+      el.innerHTML=`<span style="color:${COLORS.kLine}">K ${k!=null?k.toFixed(2):'—'}</span>　<span style="color:${COLORS.dLine}">D ${d!=null?d.toFixed(2):'—'}</span>`;
+    }else{ el.innerHTML=lastKDHtml; }
+  });
+
+  macdChart.subscribeCrosshairMove(p=>{
+    const el=document.getElementById('macdReadout');
+    if(p.time){
+      const m=p.seriesData.get(macdLineSeries)?.value, s=p.seriesData.get(signalSeries)?.value;
+      el.innerHTML=`<span style="color:${COLORS.macdLine}">DIF ${m!=null?m.toFixed(3):'—'}</span>　<span style="color:${COLORS.signalLine}">DEA ${s!=null?s.toFixed(3):'—'}</span>`;
+    }else{ el.innerHTML=lastMACDHtml; }
   });
 
   window.addEventListener('resize', ()=>{
@@ -882,12 +899,18 @@ function render(bars){
   const kdData=computeKD(bars,9);
   kSeries.setData(kdData.k); dSeries.setData(kdData.d);
   const lastK=kdData.k[kdData.k.length-1]?.value, lastD=kdData.d[kdData.d.length-1]?.value;
+  lastKDHtml=`<span style="color:${COLORS.kLine}">K ${lastK?.toFixed(2)??'—'}</span>　<span style="color:${COLORS.dLine}">D ${lastD?.toFixed(2)??'—'}</span>`;
+  document.getElementById('kdReadout').innerHTML=lastKDHtml;
 
   // MACD
   const macdResult=computeMACD(bars,12,26,9);
   macdHistSeries.setData(macdResult.hist);
   macdLineSeries.setData(macdResult.macd);
   signalSeries.setData(macdResult.signal);
+  const lastM=macdResult.macd[macdResult.macd.length-1]?.value;
+  const lastS=macdResult.signal[macdResult.signal.length-1]?.value;
+  lastMACDHtml=`<span style="color:${COLORS.macdLine}">DIF ${lastM?.toFixed(3)??'—'}</span>　<span style="color:${COLORS.signalLine}">DEA ${lastS?.toFixed(3)??'—'}</span>`;
+  document.getElementById('macdReadout').innerHTML=lastMACDHtml;
 
   // 對齊所有圖：fitContent 後透過已訂閱的 subscribeVisibleTimeRangeChange 自動同步
   priceChart.timeScale().fitContent();
