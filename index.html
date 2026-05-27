@@ -404,11 +404,12 @@ function initCharts(){
   kSeries.createPriceLine({ price:80, color:'rgba(200,200,200,.18)', lineWidth:1, lineStyle:2, axisLabelVisible:false });
   kSeries.createPriceLine({ price:20, color:'rgba(200,200,200,.18)', lineWidth:1, lineStyle:2, axisLabelVisible:false });
 
-  // MACD 圖
+  // MACD 圖（priceFormat 與 KD 一致，避免自動精度產生更寬的標籤）
+  const macdFmt = { priceFormat:{ type:'price', precision:2, minMove:0.01 }, priceLineVisible:false, lastValueVisible:false };
   macdChart = LightweightCharts.createChart(document.getElementById('macdChart'), common);
-  macdHistSeries = macdChart.addHistogramSeries({ priceLineVisible:false, lastValueVisible:false });
-  macdLineSeries = macdChart.addLineSeries({ color:COLORS.macdLine,   lineWidth:1.5, priceLineVisible:false, lastValueVisible:false });
-  signalSeries   = macdChart.addLineSeries({ color:COLORS.signalLine, lineWidth:1.5, priceLineVisible:false, lastValueVisible:false });
+  macdHistSeries = macdChart.addHistogramSeries({ ...macdFmt });
+  macdLineSeries = macdChart.addLineSeries({ color:COLORS.macdLine,   lineWidth:1.5, ...macdFmt });
+  signalSeries   = macdChart.addLineSeries({ color:COLORS.signalLine, lineWidth:1.5, ...macdFmt });
   macdLineSeries.createPriceLine({ price:0, color:'rgba(200,200,200,.18)', lineWidth:1, lineStyle:0, axisLabelVisible:false });
 
   // 同步所有圖的時間軸 + 右軸寬度
@@ -505,13 +506,22 @@ function initCharts(){
 let syncing=false;
 
 // 對齊所有圖右側價格軸寬度（確保繪圖區左右起點一致）
-function syncAxisWidth(){
+// retries：若本次有修改就繼續 rAF retry，直到穩定或次數耗盡
+function syncAxisWidth(retries=10){
   const charts=[priceChart,atrChart,kdChart,macdChart].filter(Boolean);
   if(charts.length<2) return;
   try{
     const widths=charts.map(c=>{ try{ return c.priceScale('right').width()||0; }catch(e){ return 0; } });
     const w=Math.max(...widths,76);
-    charts.forEach((c,i)=>{ if(Math.abs(widths[i]-w)>0.5) c.priceScale('right').applyOptions({minimumWidth:w}); });
+    let changed=false;
+    charts.forEach((c,i)=>{
+      if(Math.abs(widths[i]-w)>0.5){
+        c.priceScale('right').applyOptions({minimumWidth:w});
+        changed=true;
+      }
+    });
+    // 有圖更新了最小寬度 → 等下一 frame 再確認是否已收斂
+    if(changed && retries>0) requestAnimationFrame(()=>syncAxisWidth(retries-1));
   }catch(e){}
 }
 
