@@ -277,8 +277,8 @@ function initCharts(){
      {chart:macdChart, series:macdLineSeries,get:t=>macdMap.get(t)}
     ].forEach(({chart,series,get})=>{
       if(chart===src||!chart||!series) return;
-      if(time!==undefined){ const v=get(String(time)); chart.setCrosshairPosition(v!=null?v:0,time,series); }
-      else chart.clearCrosshairPosition();
+      if(time!==undefined){ const v=get(String(time)); try{ chart.setCrosshairPosition(v!=null?v:0,time,series); }catch{} }
+      else try{ chart.clearCrosshairPosition(); }catch{}
     });
     syncingCH=false;
   }

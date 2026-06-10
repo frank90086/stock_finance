@@ -110,9 +110,8 @@ function computeMACD(bars, fast=12, slow=26, sig=9){
 /* ── Data Fetching ── */
 const PROXIES = [
   {name:'allorigins', make:u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u)},
-  {name:'corsproxy',  make:u=>'https://corsproxy.io/?url='+encodeURIComponent(u)},
-  {name:'codetabs',   make:u=>'https://api.codetabs.com/v1/proxy/?quest='+encodeURIComponent(u)},
   {name:'thingproxy', make:u=>'https://thingproxy.freeboard.io/fetch/'+u},
+  {name:'corseu',     make:u=>'https://cors.eu.org/'+u},
 ];
 
 function twseURL(stockNo, yyyymmdd){
@@ -394,12 +393,23 @@ async function loadDataFinMind(stockNo, months){
 }
 
 async function fetchWithFallback(stockNo, months, onProgress){
-  try{ return await loadData(stockNo, months, onProgress); }
-  catch(e){}
-  onProgress&&onProgress('證交所無資料，切換至 Yahoo Finance…');
-  try{ return await loadDataYahoo(stockNo, months); }catch{}
-  onProgress&&onProgress('切換至 FinMind 備援…');
-  return await loadDataFinMind(stockNo, months);
+  /* FinMind has CORS * — start it immediately in background.
+     If TWSE proxies are healthy they win; if they time out FinMind is already done. */
+  const finmindP = loadDataFinMind(stockNo, months).catch(()=>null);
+
+  const twseRace = Promise.race([
+    loadData(stockNo, months, onProgress),
+    new Promise((_,rej)=>setTimeout(()=>rej(new Error('proxy timeout')), 10000))
+  ]);
+  try{ return await twseRace; } catch{}
+
+  onProgress&&onProgress('切換至備援資料源…');
+  const finmind = await finmindP;  /* already running — resolves instantly if done */
+  if(finmind) return finmind;
+
+  onProgress&&onProgress('切換至 Yahoo Finance 備援…');
+  try{ return await loadDataYahoo(stockNo, months); } catch{}
+  throw new Error('所有資料來源均無法連線，請檢查網路後重試');
 }
 
 async function loadFundamentals(stockNo){
