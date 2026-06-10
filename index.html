@@ -6,6 +6,10 @@
 <meta name="description" content="台灣股票技術分析工具：K線、ATR、KD、MACD，即時從證交所抓取資料。">
 <title>個股走勢 — TWSE Analytics</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230d0f12'/%3E%3Crect x='4' y='9' width='5' height='14' rx='1' fill='%23ef5350'/%3E%3Cline x1='6.5' y1='5' x2='6.5' y2='27' stroke='%23ef5350' stroke-width='1.5'/%3E%3Crect x='13' y='6' width='5' height='11' rx='1' fill='%23ef5350'/%3E%3Cline x1='15.5' y1='2' x2='15.5' y2='22' stroke='%23ef5350' stroke-width='1.5'/%3E%3Crect x='22' y='13' width='5' height='9' rx='1' fill='%2326a69a'/%3E%3Cline x1='24.5' y1='9' x2='24.5' y2='27' stroke='%2326a69a' stroke-width='1.5'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://openapi.twse.com.tw" crossorigin>
 <link rel="stylesheet" href="assets/style.css">
 <style>
   /* Page-specific: MA colour tokens */
@@ -27,10 +31,12 @@
 </head>
 <body>
 
+<a href="#main" class="skip-link">跳至主要內容</a>
+
 <!-- Navigation (populated by shared.js injectNav) -->
 <nav class="nav" id="app-nav" role="navigation" aria-label="主導覽"></nav>
 
-<main class="page" id="main">
+<main class="page" id="main" tabindex="-1">
 
   <!-- Page header: stock name + quote -->
   <div class="page-header">
@@ -50,9 +56,9 @@
   <!-- Controls -->
   <div class="controls">
     <div class="seg" id="rangeSeg" role="group" aria-label="時間範圍">
-      <button data-months="3">近 3 月</button>
-      <button data-months="6" class="active">近 6 月</button>
-      <button data-months="12">近 1 年</button>
+      <button data-months="3" aria-pressed="false">近 3 月</button>
+      <button data-months="6" class="active" aria-pressed="true">近 6 月</button>
+      <button data-months="12" aria-pressed="false">近 1 年</button>
     </div>
     <div class="spacer"></div>
     <div class="search-wrap" role="search">
@@ -83,17 +89,17 @@
   <!-- Indicator toggles -->
   <div class="toggles" id="toggles" role="group" aria-label="疊加指標">
     <span class="tg-label">疊加</span>
-    <button class="tg" data-k="ma5"   style="--c:var(--ma5)"  >MA5</button>
-    <button class="tg" data-k="ma10"  style="--c:var(--ma10)" >MA10</button>
-    <button class="tg on" data-k="ma20" style="--c:var(--ma20)">MA20</button>
-    <button class="tg" data-k="ma60"  style="--c:var(--ma60)" >MA60</button>
-    <button class="tg" data-k="ma120" style="--c:var(--ma120)">MA120</button>
-    <button class="tg" data-k="ma240" style="--c:var(--ma240)">MA240</button>
+    <button class="tg" data-k="ma5"   style="--c:var(--ma5)"   aria-pressed="false">MA5</button>
+    <button class="tg" data-k="ma10"  style="--c:var(--ma10)"  aria-pressed="false">MA10</button>
+    <button class="tg on" data-k="ma20" style="--c:var(--ma20)" aria-pressed="true">MA20</button>
+    <button class="tg" data-k="ma60"  style="--c:var(--ma60)"  aria-pressed="false">MA60</button>
+    <button class="tg" data-k="ma120" style="--c:var(--ma120)" aria-pressed="false">MA120</button>
+    <button class="tg" data-k="ma240" style="--c:var(--ma240)" aria-pressed="false">MA240</button>
     <span class="tg-div" aria-hidden="true"></span>
-    <button class="tg on" data-k="bb"   style="--c:var(--bbBand)">布林通道</button>
+    <button class="tg on" data-k="bb"   style="--c:var(--bbBand)" aria-pressed="true">布林通道</button>
     <span class="tg-div" aria-hidden="true"></span>
-    <button class="tg on" data-k="kd"   style="--c:#a78bfa">KD</button>
-    <button class="tg on" data-k="macd" style="--c:#4ade80">MACD</button>
+    <button class="tg on" data-k="kd"   style="--c:#a78bfa" aria-pressed="true">KD</button>
+    <button class="tg on" data-k="macd" style="--c:#4ade80" aria-pressed="true">MACD</button>
   </div>
 
   <!-- Main chart card -->
@@ -102,13 +108,19 @@
       <h2>日 K 線</h2>
       <span class="readout" id="ohlcReadout" aria-live="polite"></span>
     </div>
-    <div id="priceChart" role="img" aria-label="K線圖"></div>
+    <div class="chart-wrap">
+      <div id="priceChart" role="img" aria-label="K線圖"></div>
+      <div class="chart-skel loading" id="skelPrice" aria-hidden="true"></div>
+    </div>
     <div class="sub">
       <div class="card-hd">
         <h2>ATR — 平均真實區間</h2>
         <span class="readout" id="atrReadout" aria-live="polite"></span>
       </div>
-      <div id="atrChart" role="img" aria-label="ATR指標圖"></div>
+      <div class="chart-wrap">
+        <div id="atrChart" role="img" aria-label="ATR指標圖"></div>
+        <div class="chart-skel loading" id="skelAtr" aria-hidden="true"></div>
+      </div>
     </div>
   </div>
 
@@ -118,7 +130,10 @@
       <h2>KD 隨機指標 (9)</h2>
       <span class="readout" id="kdReadout" aria-live="polite"></span>
     </div>
-    <div id="kdChart" role="img" aria-label="KD指標圖"></div>
+    <div class="chart-wrap">
+      <div id="kdChart" role="img" aria-label="KD指標圖"></div>
+      <div class="chart-skel loading" id="skelKD" aria-hidden="true"></div>
+    </div>
   </div>
 
   <!-- MACD chart -->
@@ -127,7 +142,10 @@
       <h2>MACD (12, 26, 9)</h2>
       <span class="readout" id="macdReadout" aria-live="polite"></span>
     </div>
-    <div id="macdChart" role="img" aria-label="MACD指標圖"></div>
+    <div class="chart-wrap">
+      <div id="macdChart" role="img" aria-label="MACD指標圖"></div>
+      <div class="chart-skel loading" id="skelMACD" aria-hidden="true"></div>
+    </div>
   </div>
 
   <!-- Stats -->
@@ -346,6 +364,10 @@ function render(bars){
   lastMACDHtml=`<span style="color:${COLORS.macdLine}">DIF ${lastM?.toFixed(3)??'—'}</span>　<span style="color:${COLORS.sigLine}">DEA ${lastS!=null?lastS.toFixed(3):'—'}</span>`;
   document.getElementById('macdReadout').innerHTML=lastMACDHtml;
   loading=false;
+  /* Hide chart skeletons now that data is rendered */
+  ['skelPrice','skelAtr','skelKD','skelMACD'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.hidden=true;
+  });
   priceChart.timeScale().fitContent();
   requestAnimationFrame(()=>{ forceSync(); syncAxisWidth(10); });
   [80,200,400].forEach(ms=>setTimeout(()=>{ forceSync(); syncAxisWidth(); },ms));
@@ -457,8 +479,10 @@ function pushHash(code, months){
 function wireControls(){
   document.getElementById('rangeSeg').addEventListener('click',e=>{
     const b=e.target.closest('button'); if(!b) return;
-    document.querySelectorAll('#rangeSeg button').forEach(x=>x.classList.remove('active'));
-    b.classList.add('active');
+    document.querySelectorAll('#rangeSeg button').forEach(x=>{
+      x.classList.remove('active'); x.setAttribute('aria-pressed','false');
+    });
+    b.classList.add('active'); b.setAttribute('aria-pressed','true');
     currentMonths=+b.dataset.months;
     if(SELECTED){ pushHash(SELECTED,currentMonths); runChart(SELECTED,currentMonths); }
   });
@@ -466,6 +490,7 @@ function wireControls(){
     const b=e.target.closest('.tg'); if(!b) return;
     const k=b.dataset.k;
     toggles[k]=!toggles[k]; b.classList.toggle('on',toggles[k]);
+    b.setAttribute('aria-pressed', String(toggles[k]));
     if(k==='kd')   document.getElementById('kdCard').style.display=toggles.kd?'':'none';
     else if(k==='macd') document.getElementById('macdCard').style.display=toggles.macd?'':'none';
     else applyOverlays();
@@ -494,6 +519,10 @@ function wireControls(){
 }
 
 async function runChart(stockNo, months){
+  /* Reset skeletons for each new query */
+  ['skelPrice','skelAtr','skelKD','skelMACD'].forEach(id=>{
+    const el=document.getElementById(id); if(el){ el.hidden=false; el.classList.add('loading'); }
+  });
   try{
     const result=await fetchWithFallback(stockNo, months, msg=>{
       setStatus('loading',`<span class="spin" aria-hidden="true"></span>${msg}`);
@@ -548,7 +577,9 @@ async function runChart(stockNo, months){
 
   /* Sync range-button UI to currentMonths (may differ from default 6) */
   document.querySelectorAll('#rangeSeg button').forEach(b=>{
-    b.classList.toggle('active',+b.dataset.months===currentMonths);
+    const on=+b.dataset.months===currentMonths;
+    b.classList.toggle('active',on);
+    b.setAttribute('aria-pressed', String(on));
   });
 
   loadStockList().catch(()=>{});

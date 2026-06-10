@@ -491,23 +491,42 @@ function wireSearchBox(opts){
   if(!input||!box) return;
   let items=[], active=-1;
 
+  input.setAttribute('aria-expanded','false');
+
   function renderSuggest(list){
     items=list; active=-1;
     if(!list.length){
       box.innerHTML=stockListReady
-        ?'<div class="empty">找不到符合的股票</div>'
-        :'<div class="empty">清單載入中…可直接輸入 4 位數代碼查詢</div>';
-      box.hidden=false; return;
+        ?'<div class="empty" role="status">找不到符合的股票</div>'
+        :'<div class="empty" role="status">清單載入中…可直接輸入 4 位數代碼查詢</div>';
+      box.hidden=false;
+      input.setAttribute('aria-expanded','true');
+      input.removeAttribute('aria-activedescendant');
+      return;
     }
     box.innerHTML=list.map((s,i)=>
-      `<div class="opt" data-i="${i}" data-code="${s.code}">
+      `<div class="opt" role="option" id="${opts.suggestId}-opt-${i}"
+           aria-selected="false" data-i="${i}" data-code="${s.code}">
          <span class="code">${s.code}</span><span class="nm">${s.name}</span>
          <span class="mk">${s.mk||''}</span>
        </div>`).join('');
     box.hidden=false;
+    input.setAttribute('aria-expanded','true');
+    input.removeAttribute('aria-activedescendant');
   }
-  function closeSuggest(){ box.hidden=true; active=-1; }
-  function highlight(){ [...box.querySelectorAll('.opt')].forEach((el,i)=>el.classList.toggle('active',i===active)); }
+  function closeSuggest(){
+    box.hidden=true; active=-1;
+    input.setAttribute('aria-expanded','false');
+    input.removeAttribute('aria-activedescendant');
+  }
+  function highlight(){
+    [...box.querySelectorAll('.opt')].forEach((el,i)=>{
+      el.classList.toggle('active',i===active);
+      el.setAttribute('aria-selected', i===active ? 'true' : 'false');
+    });
+    if(active>=0) input.setAttribute('aria-activedescendant',`${opts.suggestId}-opt-${active}`);
+    else input.removeAttribute('aria-activedescendant');
+  }
   function choose(s){
     input.value=`${s.code} ${s.name}`;
     closeSuggest();

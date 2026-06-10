@@ -6,12 +6,17 @@
 <meta name="description" content="台灣股市總覽：查詢上市上櫃股票走勢、技術指標與策略回測。">
 <title>台灣股市總覽 — TWSE Analytics</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230d0f12'/%3E%3Crect x='4' y='9' width='5' height='14' rx='1' fill='%23ef5350'/%3E%3Cline x1='6.5' y1='5' x2='6.5' y2='27' stroke='%23ef5350' stroke-width='1.5'/%3E%3Crect x='13' y='6' width='5' height='11' rx='1' fill='%23ef5350'/%3E%3Cline x1='15.5' y1='2' x2='15.5' y2='22' stroke='%23ef5350' stroke-width='1.5'/%3E%3Crect x='22' y='13' width='5' height='9' rx='1' fill='%2326a69a'/%3E%3Cline x1='24.5' y1='9' x2='24.5' y2='27' stroke='%2326a69a' stroke-width='1.5'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://openapi.twse.com.tw" crossorigin>
 <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
+<a href="#main" class="skip-link">跳至主要內容</a>
+
 <nav class="nav" id="app-nav" role="navigation" aria-label="主導覽"></nav>
 
-<main class="page">
+<main class="page" id="main" tabindex="-1">
 
   <!-- Hero: search entry point -->
   <div class="ov-hero">
@@ -192,7 +197,7 @@ async function loadMarketSummary(){
     if(!p) return null;
     const chgStr = isNaN(p.chgNum)?'—':`${p.up?'▲':'▼'} ${Math.abs(p.chgNum).toFixed(2)}`;
     return `<div class="mkt-item">
-      <div class="mkt-lbl">${label} <span style="color:var(--t3);font-weight:400">${code}</span></div>
+      <div class="mkt-lbl">${label} <span class="mkt-code">${code}</span></div>
       <div class="mkt-val">${p.close}</div>
       <div class="mkt-chg ${p.up?'up':'dn'}">${chgStr}</div>
     </div>`;
