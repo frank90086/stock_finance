@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="台灣股市總覽：查詢上市上櫃股票走勢、技術指標與策略回測。">
+<title>台灣股市總覽 — TWSE Analytics</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230d0f12'/%3E%3Crect x='4' y='9' width='5' height='14' rx='1' fill='%23ef5350'/%3E%3Cline x1='6.5' y1='5' x2='6.5' y2='27' stroke='%23ef5350' stroke-width='1.5'/%3E%3Crect x='13' y='6' width='5' height='11' rx='1' fill='%23ef5350'/%3E%3Cline x1='15.5' y1='2' x2='15.5' y2='22' stroke='%23ef5350' stroke-width='1.5'/%3E%3Crect x='22' y='13' width='5' height='9' rx='1' fill='%2326a69a'/%3E%3Cline x1='24.5' y1='9' x2='24.5' y2='27' stroke='%2326a69a' stroke-width='1.5'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<nav class="nav" id="app-nav" role="navigation" aria-label="主導覽"></nav>
+
+<main class="page">
+
+  <!-- Hero: search entry point -->
+  <div class="ov-hero">
+    <div class="page-header">
+      <div class="title-block">
+        <div class="ticker-label">TWSE / TPEX</div>
+        <h1 class="page-h1">台灣股市總覽</h1>
+      </div>
+    </div>
+    <div class="search-wrap ov-search" role="search">
+      <div class="search-row">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+             class="search-icon" aria-hidden="true">
+          <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input id="stockInput" placeholder="輸入上市／上櫃代碼或名稱…" autocomplete="off"
+               aria-label="股票搜尋" aria-autocomplete="list" aria-controls="suggest">
+        <button class="btn btn-sm" id="searchBtn">查詢</button>
+      </div>
+      <div id="suggest" class="suggest" hidden role="listbox" aria-label="搜尋建議"></div>
+    </div>
+  </div>
+
+  <!-- Market summary (async, best-effort) -->
+  <section id="mktSection" hidden aria-label="市場概況">
+    <div class="ov-sec-hd">市場概況</div>
+    <div id="mktGrid" class="mkt-grid"></div>
+  </section>
+
+  <!-- Recently viewed (from localStorage) -->
+  <section id="recentSection" hidden aria-label="最近查看">
+    <div class="ov-sec-hd">最近查看</div>
+    <div id="recentGrid" class="ov-grid"></div>
+  </section>
+
+  <!-- Popular stocks -->
+  <section aria-label="熱門股票">
+    <div class="ov-sec-hd">熱門股票</div>
+    <div id="popularGrid" class="ov-grid"></div>
+  </section>
+
+  <!-- Function entry points -->
+  <div class="ov-quick">
+    <a href="index.html" class="btn" aria-label="前往個股走勢頁面">個股走勢</a>
+    <a href="backtest.html" class="btn btn-outline" aria-label="前往策略回測頁面">策略回測</a>
+  </div>
+
+</main>
+
+<script src="assets/shared.js"></script>
+<script>
+/* Recently viewed helpers */
+function getRecent(){
+  try{ return JSON.parse(localStorage.getItem('twse_v2:recent')||'[]'); }catch{ return []; }
+}
+
+function buildCard(code, name, mk, priceInfo){
+  const mkCls = mk==='上櫃'?'ov-mk-tpex':'ov-mk-twse';
+  const priceHtml = priceInfo
+    ? `<span class="ov-price">${priceInfo.close}</span><span class="ov-chg ${priceInfo.up?'up':'dn'}">${priceInfo.chg}</span>`
+    : '';
+  return `<a href="index.html#${code}/6" class="ov-card" tabindex="0" aria-label="${name}（${code}）個股走勢">
+    <span class="ov-code">${code}</span>
+    <span class="ov-name">${name||code}</span>
+    <div class="ov-row" data-code="${code}">
+      <span class="ov-mk ${mkCls}">${mk||'上市'}</span>
+      ${priceHtml}
+    </div>
+  </a>`;
+}
+
+(async function boot(){
+  injectNav('overview');
+  loadStockList().catch(()=>{});
+
+  /* Search → jump to chart page */
+  wireSearchBox({
+    inputId:'stockInput', suggestId:'suggest', btnId:'searchBtn',
+    onSelect(s){ location.href=`index.html#${s.code}/6`; }
+  });
+
+  /* Popular stocks grid (static, always fast) */
+  const popular = FALLBACK_LIST.slice(0, 20);
+  document.getElementById('popularGrid').innerHTML =
+    popular.map(([code,name,mk])=>buildCard(code,name,mk,null)).join('');
+
+  /* Recently viewed */
+  const recent = getRecent();
+  if(recent.length){
+    document.getElementById('recentGrid').innerHTML =
+      recent.map(({code,name,mk})=>buildCard(code,name||code,mk||'',null)).join('');
+    document.getElementById('recentSection').hidden = false;
+  }
+
+  /* Async: load live prices from TWSE STOCK_DAY_ALL (same call as loadStockList) */
+  loadLivePrices(popular);
+  loadMarketSummary();
+})();
+
+async function loadLivePrices(stocks){
+  let data = null;
+  try{
+    const res = await fetchTimeout(twseAllURL(), 9000);
+    if(res.ok) data = await res.json();
+  }catch{}
+  if(!data){
+    for(const p of PROXIES){
+      try{ data = await tryJSON(p, twseAllURL(), 9000); break; }catch{}
+    }
+  }
+  if(!Array.isArray(data)) return;
+
+  const priceMap = new Map();
+  data.forEach(r=>{
+    const code = r.Code||r['證券代號'];
+    const closeRaw = String(r.ClosingPrice||r['收盤價']||'').replace(/,/g,'');
+    const chgRaw   = String(r.Change||r['漲跌價差']||'').trim();
+    const close = parseFloat(closeRaw);
+    if(!code||isNaN(close)) return;
+    const chgNum = parseFloat(chgRaw.replace(/[▲+]/g,'').replace(/▼/g,'-').replace(/,/g,''));
+    const up = !isNaN(chgNum) ? chgNum >= 0 : true;
+    priceMap.set(code, {close:close.toFixed(2), chg: isNaN(chgNum)?'—':`${up?'▲':'▼'} ${Math.abs(chgNum).toFixed(2)}`, up});
+  });
+
+  /* Inject prices into popular stock cards */
+  const grid = document.getElementById('popularGrid');
+  stocks.forEach(([code,,mk])=>{
+    const row = grid.querySelector(`.ov-row[data-code="${code}"]`);
+    const p = priceMap.get(code);
+    if(!row||!p) return;
+    const mkCls = mk==='上櫃'?'ov-mk-tpex':'ov-mk-twse';
+    row.innerHTML=`<span class="ov-mk ${mkCls}">${mk||'上市'}</span><span class="ov-price">${p.close}</span><span class="ov-chg ${p.up?'up':'dn'}">${p.chg}</span>`;
+  });
+
+  /* Also inject into recently-viewed cards */
+  const recentGrid = document.getElementById('recentGrid');
+  recentGrid.querySelectorAll('.ov-row[data-code]').forEach(row=>{
+    const code = row.dataset.code;
+    const p = priceMap.get(code);
+    const info = STOCK_LIST.find(s=>s.code===code);
+    const mk = info?.mk||'';
+    if(!p) return;
+    const mkCls = mk==='上櫃'?'ov-mk-tpex':'ov-mk-twse';
+    row.innerHTML=`<span class="ov-mk ${mkCls}">${mk}</span><span class="ov-price">${p.close}</span><span class="ov-chg ${p.up?'up':'dn'}">${p.chg}</span>`;
+  });
+}
+
+async function loadMarketSummary(){
+  /* Extract key ETFs from STOCK_DAY_ALL as market proxies */
+  const keys = [
+    {code:'0050', label:'元大台灣50'},
+    {code:'0056', label:'元大高股息'},
+    {code:'00878', label:'國泰ESG永續'}
+  ];
+  let data = null;
+  try{
+    const res = await fetchTimeout(twseAllURL(), 9000);
+    if(res.ok) data = await res.json();
+  }catch{}
+  if(!data){
+    for(const p of PROXIES){
+      try{ data = await tryJSON(p, twseAllURL(), 9000); break; }catch{}
+    }
+  }
+  if(!Array.isArray(data)) return;
+
+  const priceMap = new Map();
+  data.forEach(r=>{
+    const code = r.Code||r['證券代號'];
+    const close = parseFloat(String(r.ClosingPrice||'').replace(/,/g,''));
+    const chgRaw = String(r.Change||'').trim();
+    const chgNum = parseFloat(chgRaw.replace(/[▲+]/g,'').replace(/▼/g,'-').replace(/,/g,''));
+    if(code&&!isNaN(close)) priceMap.set(code, {close:close.toFixed(2), chgNum, up: !isNaN(chgNum)&&chgNum>=0});
+  });
+
+  const items = keys.map(({code,label})=>{
+    const p = priceMap.get(code);
+    if(!p) return null;
+    const chgStr = isNaN(p.chgNum)?'—':`${p.up?'▲':'▼'} ${Math.abs(p.chgNum).toFixed(2)}`;
+    return `<div class="mkt-item">
+      <div class="mkt-lbl">${label} <span style="color:var(--t3);font-weight:400">${code}</span></div>
+      <div class="mkt-val">${p.close}</div>
+      <div class="mkt-chg ${p.up?'up':'dn'}">${chgStr}</div>
+    </div>`;
+  }).filter(Boolean);
+
+  if(!items.length) return;
+  document.getElementById('mktGrid').innerHTML = items.join('');
+  document.getElementById('mktSection').hidden = false;
+}
+</script>
+</body>
+</html>

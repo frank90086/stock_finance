@@ -38,7 +38,7 @@
       <div class="ticker-label" id="tickerLabel">TWSE/TPEX · 2330</div>
       <h1 class="page-h1" id="stockName">台積電 <span>TSMC</span></h1>
     </div>
-    <div class="title-block" style="align-items:flex-end">
+    <div class="title-block title-block-right">
       <div class="quote-block">
         <div class="price-big num" id="lastPrice">—</div>
         <div class="chg-badge" id="lastChg">—</div>
@@ -58,7 +58,7 @@
     <div class="search-wrap" role="search">
       <div class="search-row">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
-             style="color:var(--t3);flex:none" aria-hidden="true">
+             class="search-icon" aria-hidden="true">
           <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
         </svg>
         <input id="stockInput" placeholder="輸入代碼或名稱" autocomplete="off" aria-label="股票搜尋" aria-autocomplete="list" aria-controls="suggest">
@@ -113,7 +113,7 @@
   </div>
 
   <!-- KD chart -->
-  <div class="card" id="kdCard" style="margin-top:10px">
+  <div class="card" id="kdCard">
     <div class="card-hd">
       <h2>KD 隨機指標 (9)</h2>
       <span class="readout" id="kdReadout" aria-live="polite"></span>
@@ -122,7 +122,7 @@
   </div>
 
   <!-- MACD chart -->
-  <div class="card" id="macdCard" style="margin-top:10px">
+  <div class="card" id="macdCard">
     <div class="card-hd">
       <h2>MACD (12, 26, 9)</h2>
       <span class="readout" id="macdReadout" aria-live="polite"></span>
@@ -131,15 +131,15 @@
   </div>
 
   <!-- Stats -->
-  <div class="stat-grid" id="stats" style="margin-top:14px"></div>
+  <div class="stat-grid" id="stats"></div>
 
   <!-- Fundamentals -->
   <div class="fund-section">
     <div class="fund-label">基本面參考（當日）</div>
     <div class="fund-grid">
-      <div class="fund-card"><div class="fk">本益比 P/E</div><div class="fv num" id="stat-pe" style="color:var(--t2);font-size:14px">載入中…</div></div>
-      <div class="fund-card"><div class="fk">殖利率 Yield</div><div class="fv num" id="stat-yield" style="color:var(--t2);font-size:14px">載入中…</div></div>
-      <div class="fund-card"><div class="fk">股價淨值比 P/B</div><div class="fv num" id="stat-pb" style="color:var(--t2);font-size:14px">載入中…</div></div>
+      <div class="fund-card"><div class="fk">本益比 P/E</div><div class="fv num fv-dim" id="stat-pe">載入中…</div></div>
+      <div class="fund-card"><div class="fk">殖利率 Yield</div><div class="fv num fv-dim" id="stat-yield">載入中…</div></div>
+      <div class="fund-card"><div class="fk">股價淨值比 P/B</div><div class="fv num fv-dim" id="stat-pb">載入中…</div></div>
     </div>
   </div>
 
@@ -505,13 +505,20 @@ async function runChart(stockNo, months){
     document.getElementById('tickerLabel').textContent=`TWSE/TPEX · ${stockNo}`;
     document.title=`${showName}（${stockNo}）— TWSE Analytics`;
     render(bars);
+    /* Track recently viewed in localStorage for overview page */
+    try{
+      let rec=JSON.parse(localStorage.getItem('twse_v2:recent')||'[]');
+      rec=rec.filter(x=>x.code!==stockNo);
+      rec.unshift({code:stockNo,name:showName,mk:listed?.mk||''});
+      localStorage.setItem('twse_v2:recent',JSON.stringify(rec.slice(0,8)));
+    }catch{}
     /* Flash amber on initial load */
     const pe=document.getElementById('lastPrice');
     pe.classList.remove('flash-up','flash-dn','flash-load');
     void pe.offsetWidth;
     pe.classList.add('flash-load');
     setStatus('ok',`✓ 已載入 ${showName}（${stockNo}）${bars.length} 個交易日。資料源：${source}。`);
-    const setF=(id,txt,ok=true)=>{ const el=document.getElementById(id); el.textContent=txt; el.style.color=ok?'':'var(--t2)'; el.style.fontSize=ok?'':'13px'; };
+    const setF=(id,txt,ok=true)=>{ const el=document.getElementById(id); el.textContent=txt; el.classList.toggle('fv-dim',!ok); };
     setF('stat-pe','載入中…',false); setF('stat-yield','載入中…',false); setF('stat-pb','載入中…',false);
     loadFundamentals(stockNo).then(f=>{
       if(!f){ setF('stat-pe','—',false); setF('stat-yield','—',false); setF('stat-pb','—',false); return; }

@@ -140,6 +140,10 @@ const FALLBACK_LIST = [
   ['1101','台泥','上市'],['2344','華邦電','上市'],['3711','日月光投控','上市'],
   ['6669','緯穎','上市'],['8299','群聯','上櫃'],['5274','信驊','上櫃'],
   ['6488','環球晶','上櫃'],['3293','鈊象','上櫃'],['6505','台塑化','上市'],
+  ['5483','中美晶','上櫃'],['3035','智原','上櫃'],['5269','祥碩','上櫃'],
+  ['6415','矽力-KY','上櫃'],['3044','健鼎','上櫃'],['4966','譜瑞-KY','上櫃'],
+  ['3533','嘉澤','上櫃'],['6462','神盾','上櫃'],['8069','元太','上市'],
+  ['2474','可成','上市'],['6278','台表科','上市'],['2385','群光','上市'],
 ];
 
 let STOCK_LIST = FALLBACK_LIST.map(([code,name,mk])=>({code,name,mk}));
@@ -165,51 +169,64 @@ async function tryJSON(proxy, url, ms=9000){
 async function loadStockList(){
   const map=new Map();
   STOCK_LIST.forEach(s=>map.set(s.code,s));
-  for(const p of PROXIES){
-    let got=false;
-    try{
-      const arr=await tryJSON(p, twseAllURL());
-      if(Array.isArray(arr)){
-        arr.forEach(r=>{
-          const code=r.Code||r['證券代號'], name=r.Name||r['證券名稱'];
-          if(/^\d{4,6}$/.test(code) && name) map.set(code,{code,name:name.trim(),mk:'上市'});
-        });
-        got=true;
-      }
-    }catch(e){}
-    try{
-      const arr=await tryJSON(p, tpexAllURL());
-      if(Array.isArray(arr)){
-        arr.forEach(r=>{
-          const code=r.SecuritiesCompanyCode||r.Code||r['股票代號'];
-          const name=r.CompanyName||r.Name||r['名稱'];
-          if(/^\d{4,6}$/.test(code) && name) map.set(code,{code,name:String(name).trim(),mk:'上櫃'});
-        });
-      }
-    }catch(e){}
-    if(got) break;
+
+  function ingestTWSE(arr){
+    if(!Array.isArray(arr)||!arr.length) return false;
+    arr.forEach(r=>{
+      const code=r.Code||r['證券代號'], name=r.Name||r['證券名稱'];
+      if(/^\d{4,6}$/.test(code)&&name) map.set(code,{code,name:name.trim(),mk:'上市'});
+    }); return true;
   }
+  function ingestTPEx(arr){
+    if(!Array.isArray(arr)||!arr.length) return false;
+    arr.forEach(r=>{
+      const code=r.SecuritiesCompanyCode||r.Code||r['股票代號'];
+      const name=r.CompanyName||r.Name||r['名稱'];
+      if(/^\d{4,6}$/.test(code)&&name) map.set(code,{code,name:String(name).trim(),mk:'上櫃'});
+    }); return true;
+  }
+
+  /* Step 1: direct CORS fetch — both APIs support Access-Control-Allow-Origin: * */
+  let [twseOk, tpexOk] = await Promise.all([
+    fetchTimeout(twseAllURL(),9000).then(r=>r.ok?r.json():Promise.reject())
+      .then(a=>{return ingestTWSE(a);}).catch(()=>false),
+    fetchTimeout(tpexAllURL(),9000).then(r=>r.ok?r.json():Promise.reject())
+      .then(a=>{return ingestTPEx(a);}).catch(()=>false)
+  ]);
+
+  /* Step 2: proxy fallback for anything still missing */
+  if(!twseOk||!tpexOk){
+    for(const p of PROXIES){
+      const ops=[];
+      if(!twseOk) ops.push(tryJSON(p,twseAllURL()).then(a=>{twseOk=ingestTWSE(a);}).catch(()=>{}));
+      if(!tpexOk) ops.push(tryJSON(p,tpexAllURL()).then(a=>{tpexOk=ingestTPEx(a);}).catch(()=>{}));
+      await Promise.allSettled(ops);
+      if(twseOk&&tpexOk) break;
+    }
+  }
+
   STOCK_LIST=[...map.values()];
   stockListReady=true;
 }
 
+/* Normalize full-width chars, ideographic space, trim, lowercase */
+function normalize(s){
+  return String(s).replace(/[！-～]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0))
+    .replace(/　/g,' ').trim().toLowerCase();
+}
+
 function searchStocks(q){
-  q=q.trim(); if(!q) return [];
-  const isNum=/^\d+$/.test(q), ql=q.toLowerCase();
+  q=normalize(q); if(!q) return [];
   const scored=[];
   for(const s of STOCK_LIST){
+    const cd=s.code, nm=normalize(s.name);
     let score=-1;
-    if(isNum){
-      if(s.code===q) score=100;
-      else if(s.code.startsWith(q)) score=80;
-      else if(s.code.includes(q)) score=40;
-    } else {
-      const nm=s.name.toLowerCase();
-      if(nm===ql) score=100;
-      else if(nm.startsWith(ql)) score=85;
-      else if(nm.includes(ql)) score=70;
-      else if(subseq(ql,nm)) score=45;
-    }
+    if(cd===q||nm===q)          score=100;
+    else if(cd.startsWith(q))   score=90;
+    else if(nm.startsWith(q))   score=85;
+    else if(nm.includes(q))     score=70;
+    else if(cd.includes(q))     score=60;
+    else if(subseq(q,nm))       score=45;
     if(score>=0) scored.push({s,score});
   }
   scored.sort((a,b)=>b.score-a.score||a.s.code.localeCompare(b.s.code));
@@ -393,22 +410,30 @@ async function loadDataFinMind(stockNo, months){
 }
 
 async function fetchWithFallback(stockNo, months, onProgress){
-  /* FinMind has CORS * — start it immediately in background.
-     If TWSE proxies are healthy they win; if they time out FinMind is already done. */
-  const finmindP = loadDataFinMind(stockNo, months).catch(()=>null);
+  /* For known TPEx (上櫃) stocks, TWSE STOCK_DAY API returns no data — skip straight to FinMind */
+  const info=STOCK_LIST.find(s=>s.code===stockNo);
+  if(info?.mk==='上櫃'){
+    onProgress&&onProgress('查詢上櫃股票資料（FinMind）…');
+    try{ return await loadDataFinMind(stockNo,months); }catch{}
+    onProgress&&onProgress('切換至 Yahoo Finance 備援…');
+    try{ return await loadDataYahoo(stockNo,months); }catch{}
+    throw new Error('所有資料來源均無法連線，請檢查網路後重試');
+  }
 
-  const twseRace = Promise.race([
-    loadData(stockNo, months, onProgress),
-    new Promise((_,rej)=>setTimeout(()=>rej(new Error('proxy timeout')), 10000))
+  /* TWSE stocks: FinMind starts in background; TWSE proxy with timeout races it */
+  const finmindP=loadDataFinMind(stockNo,months).catch(()=>null);
+  const twseRace=Promise.race([
+    loadData(stockNo,months,onProgress),
+    new Promise((_,rej)=>setTimeout(()=>rej(new Error('proxy timeout')),10000))
   ]);
-  try{ return await twseRace; } catch{}
+  try{ return await twseRace; }catch{}
 
   onProgress&&onProgress('切換至備援資料源…');
-  const finmind = await finmindP;  /* already running — resolves instantly if done */
+  const finmind=await finmindP;
   if(finmind) return finmind;
 
   onProgress&&onProgress('切換至 Yahoo Finance 備援…');
-  try{ return await loadDataYahoo(stockNo, months); } catch{}
+  try{ return await loadDataYahoo(stockNo,months); }catch{}
   throw new Error('所有資料來源均無法連線，請檢查網路後重試');
 }
 
@@ -435,17 +460,19 @@ async function loadFundamentals(stockNo){
 
 /* ── Shared nav injection ── */
 function injectNav(activePage){
-  // activePage: 'chart' | 'backtest' | ''
+  // activePage: 'overview' | 'chart' | 'backtest' | ''
   const el=document.getElementById('app-nav');
   if(!el) return;
+  const lk=(page,href,label)=>`<a href="${href}" class="nav-link${activePage===page?' active':''}"${activePage===page?' aria-current="page"':''}>${label}</a>`;
   el.innerHTML=`
-    <a href="index.html" class="nav-logo" aria-label="TWSE Analytics 首頁">
+    <a href="overview.html" class="nav-logo" aria-label="TWSE Analytics 首頁">
       <span class="blink" aria-hidden="true"></span>
       <span>TWSE Analytics</span>
     </a>
     <div class="nav-links">
-      <a href="index.html"    class="nav-link${activePage==='chart'?    ' active':''}"${activePage==='chart'?    ' aria-current="page"':''}>個股走勢</a>
-      <a href="backtest.html" class="nav-link${activePage==='backtest'?' active':''}"${activePage==='backtest'?' aria-current="page"':''}>策略回測</a>
+      ${lk('overview','overview.html','首頁')}
+      ${lk('chart','index.html','個股走勢')}
+      ${lk('backtest','backtest.html','策略回測')}
     </div>
     <div class="nav-right">
       <span class="nav-exchange">TWSE/TPEX</span>
