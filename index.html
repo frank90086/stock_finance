@@ -3,1216 +3,443 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ATR 技術指標參考</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a0e14'/%3E%3Cline x1='7' y1='5' x2='7' y2='27' stroke='%23ef5350' stroke-width='1.5'/%3E%3Crect x='4' y='9' width='6' height='12' rx='1' fill='%23ef5350'/%3E%3Cline x1='16' y1='3' x2='16' y2='22' stroke='%23ef5350' stroke-width='1.5'/%3E%3Crect x='13' y='6' width='6' height='11' rx='1' fill='%23ef5350'/%3E%3Cline x1='25' y1='9' x2='25' y2='27' stroke='%2326a69a' stroke-width='1.5'/%3E%3Crect x='22' y='13' width='6' height='9' rx='1' fill='%2326a69a'/%3E%3C/svg%3E">
+<meta name="description" content="台灣股票技術分析工具：K線、ATR、KD、MACD，即時從證交所抓取資料。">
+<title>個股走勢 — TWSE Analytics</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230d0f12'/%3E%3Crect x='4' y='9' width='5' height='14' rx='1' fill='%23ef5350'/%3E%3Cline x1='6.5' y1='5' x2='6.5' y2='27' stroke='%23ef5350' stroke-width='1.5'/%3E%3Crect x='13' y='6' width='5' height='11' rx='1' fill='%23ef5350'/%3E%3Cline x1='15.5' y1='2' x2='15.5' y2='22' stroke='%23ef5350' stroke-width='1.5'/%3E%3Crect x='22' y='13' width='5' height='9' rx='1' fill='%2326a69a'/%3E%3Cline x1='24.5' y1='9' x2='24.5' y2='27' stroke='%2326a69a' stroke-width='1.5'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/style.css">
 <style>
+  /* Page-specific: MA colour tokens */
   :root{
-    --bg:#0a0e14;
-    --panel:#11161f;
-    --panel-2:#161c27;
-    --line:#222b39;
-    --txt:#e6edf3;
-    --txt-dim:#7d8896;
-    --up:#26a69a;
-    --down:#ef5350;
-    --atr7:#f5a623;
-    --atr14:#5b9dff;
-    --accent:#f5a623;
+    --ma5:#ff7eb6; --ma10:#f59e0b; --ma20:#ffd23f;
+    --ma60:#4ade80; --ma120:#38bdf8; --ma240:#a78bfa;
+    --bbBand:#60a5fa;
   }
-  *{box-sizing:border-box;margin:0;padding:0}
-  html,body{height:100%}
-  body{
-    background:
-      radial-gradient(1200px 600px at 80% -10%, rgba(245,166,35,.06), transparent 60%),
-      radial-gradient(900px 500px at 0% 110%, rgba(91,157,255,.06), transparent 55%),
-      var(--bg);
-    color:var(--txt);
-    font-family:"PingFang TC","Microsoft JhengHei","Noto Sans TC",-apple-system,BlinkMacSystemFont,sans-serif;
-    -webkit-font-smoothing:antialiased;
-    min-height:100%;
-    padding:28px 22px 60px;
-  }
-  .wrap{max-width:1180px;margin:0 auto}
-
-  header{
-    display:flex;align-items:flex-end;justify-content:space-between;
-    gap:20px;flex-wrap:wrap;
-    border-bottom:1px solid var(--line);
-    padding-bottom:18px;margin-bottom:22px;
-  }
-  .title-block{display:flex;flex-direction:column;gap:6px}
-  .ticker{
-    font-family:"SFMono-Regular",ui-monospace,"Roboto Mono",monospace;
-    font-size:13px;letter-spacing:3px;color:var(--accent);text-transform:uppercase;
-  }
-  h1{font-size:30px;font-weight:800;letter-spacing:-.5px;line-height:1}
-  h1 span{color:var(--txt-dim);font-weight:500;font-size:18px;margin-left:8px}
-  .quote{
-    display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;
-  }
-  .price{font-family:ui-monospace,monospace;font-size:34px;font-weight:700;line-height:1}
-  .chg{font-family:ui-monospace,monospace;font-size:16px;font-weight:600;padding:3px 9px;border-radius:6px}
-  .chg.up{color:var(--up);background:rgba(38,166,154,.12)}
-  .chg.down{color:var(--down);background:rgba(239,83,80,.12)}
-  .asof{font-size:12px;color:var(--txt-dim)}
-
-  .controls{
-    display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:18px;
-  }
-  .seg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
-  .seg button{
-    background:transparent;border:none;color:var(--txt-dim);
-    padding:8px 15px;font-size:13px;font-weight:600;cursor:pointer;
-    font-family:inherit;transition:.15s;
-  }
-  .seg button:hover{color:var(--txt)}
-  .seg button.active{background:var(--panel-2);color:var(--accent)}
-  .spacer{flex:1}
-  .search-box{position:relative}
-  .stock-input{
-    display:flex;gap:8px;align-items:center;
-    background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:4px 4px 4px 12px;
-    transition:border-color .15s;
-  }
-  .stock-input:focus-within{border-color:var(--accent)}
-  .stock-input label{font-size:12px;color:var(--txt-dim)}
-  .stock-input input{
-    background:transparent;border:none;color:var(--txt);
-    font-family:"PingFang TC","Microsoft JhengHei",ui-monospace,monospace;
-    font-size:14px;width:230px;outline:none;
-  }
-  .stock-input input::placeholder{color:var(--txt-dim);opacity:.7}
-  .stock-input button{
-    background:var(--accent);color:#1a1206;border:none;border-radius:7px;
-    padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex:none;
-  }
-  .stock-input button:hover{filter:brightness(1.08)}
-  .suggest{
-    position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:50;
-    background:var(--panel-2);border:1px solid var(--line);border-radius:11px;
-    box-shadow:0 24px 50px -20px rgba(0,0,0,.85);
-    max-height:320px;overflow-y:auto;padding:5px;
-  }
-  .suggest .opt{
-    display:flex;align-items:center;gap:12px;padding:9px 11px;border-radius:8px;cursor:pointer;
-  }
-  .suggest .opt:hover,.suggest .opt.active{background:rgba(245,166,35,.12)}
-  .suggest .opt .code{
-    font-family:ui-monospace,monospace;font-size:14px;font-weight:700;color:var(--accent);
-    min-width:52px;
-  }
-  .suggest .opt .nm{font-size:14px;color:var(--txt)}
-  .suggest .opt .mk{font-size:11px;color:var(--txt-dim);margin-left:auto;
-    border:1px solid var(--line);border-radius:5px;padding:1px 6px}
-  .suggest .empty{padding:14px 12px;font-size:13px;color:var(--txt-dim);text-align:center}
-
-  .legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12.5px;color:var(--txt-dim);margin-bottom:10px}
-  .legend .item{display:flex;align-items:center;gap:7px}
-  .swatch{width:14px;height:3px;border-radius:2px}
-  .legend b{font-family:ui-monospace,monospace;color:var(--txt);font-weight:600}
-
-  .card{
-    background:linear-gradient(180deg, var(--panel), rgba(17,22,31,.6));
-    border:1px solid var(--line);border-radius:16px;
-    box-shadow:0 20px 50px -28px rgba(0,0,0,.9);
-    overflow:hidden;
-  }
-  .card-head{
-    display:flex;align-items:center;justify-content:space-between;
-    padding:13px 18px;border-bottom:1px solid var(--line);
-  }
-  .card-head h2{font-size:13px;font-weight:700;letter-spacing:.5px;color:var(--txt-dim);text-transform:uppercase}
-  #priceChart{height:380px;width:100%}
-  #atrChart{height:200px;width:100%}
-  #kdChart{height:160px;width:100%}
-  #macdChart{height:160px;width:100%}
-  .sub{border-top:1px solid var(--line)}
-  .fund-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:14px 0 0}
-  .fund-card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px}
-  .fund-card .fk{font-size:11px;color:var(--txt-dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
-  .fund-card .fv{font-family:ui-monospace,monospace;font-size:18px;font-weight:700}
-
-  .status{
-    margin:16px 0;padding:14px 16px;border-radius:12px;font-size:13.5px;line-height:1.55;
-    border:1px solid var(--line);background:var(--panel);
-  }
-  .status.loading{color:var(--accent)}
-  .status.err{color:var(--down);border-color:rgba(239,83,80,.35);background:rgba(239,83,80,.07)}
-  .status.ok{color:var(--up);border-color:rgba(38,166,154,.25)}
-  .status code{font-family:ui-monospace,monospace;background:rgba(255,255,255,.06);padding:1px 6px;border-radius:4px}
-  .spin{display:inline-block;width:13px;height:13px;border:2px solid var(--accent);border-top-color:transparent;border-radius:50%;animation:s .7s linear infinite;vertical-align:-1px;margin-right:7px}
-  @keyframes s{to{transform:rotate(360deg)}}
-
-  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:18px 0 4px}
-  .stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
-  .stat .k{font-size:11px;color:var(--txt-dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
-  .stat .v{font-family:ui-monospace,monospace;font-size:22px;font-weight:700}
-  .stat .v small{font-size:12px;color:var(--txt-dim);font-weight:500}
-
-  .note{margin-top:26px;font-size:12px;line-height:1.7;color:var(--txt-dim)}
-  .note h3{color:var(--txt);font-size:13px;margin-bottom:8px;font-weight:700}
-  .note p{margin-bottom:8px}
-  .note .disc{border-left:2px solid var(--line);padding-left:12px;margin-top:14px;color:#5f6873}
-  a{color:var(--atr14);text-decoration:none}
-  a:hover{text-decoration:underline}
-
-  /* 指標開關 */
-  .toggles{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
-  .tg-label{font-size:12px;color:var(--txt-dim);margin-right:4px}
-  .tg-div{width:1px;height:18px;background:var(--line);margin:0 4px}
-  .tg{
-    --c:var(--accent);
-    background:var(--panel);border:1px solid var(--line);color:var(--txt-dim);
-    padding:6px 12px;border-radius:8px;font-size:12.5px;font-weight:600;cursor:pointer;
-    font-family:inherit;transition:.14s;display:flex;align-items:center;gap:6px;
-  }
-  .tg::before{content:'';width:9px;height:9px;border-radius:50%;background:var(--c);opacity:.25;transition:.14s}
-  .tg:hover{border-color:var(--c);color:var(--txt)}
-  .tg.on{color:var(--txt);border-color:var(--c);background:color-mix(in srgb, var(--c) 12%, var(--panel))}
-  .tg.on::before{opacity:1;box-shadow:0 0 8px var(--c)}
-
-  /* 策略導覽 */
-  .strategy-section{margin:30px 0 10px}
-  .ss-head{display:flex;align-items:baseline;gap:12px;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--line)}
-  .ss-head h2{font-size:18px;font-weight:800;letter-spacing:-.3px}
-  .ss-sub{font-size:12.5px;color:var(--txt-dim)}
-  .strat-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
-  @media(max-width:760px){.strat-grid{grid-template-columns:1fr}}
-  .strat-card{background:linear-gradient(180deg,var(--panel),rgba(17,22,31,.5));border:1px solid var(--line);border-radius:14px;padding:16px 18px}
-  .strat-card.full{margin-top:0}
-  .sc-head{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:700;margin-bottom:12px;color:var(--txt)}
-  .sc-head .dot{width:9px;height:9px;border-radius:50%;flex:none}
-  .strat-tbl{width:100%;border-collapse:collapse;font-size:13px}
-  .strat-tbl th{text-align:left;color:var(--txt-dim);font-weight:600;font-size:11.5px;padding:5px 8px;border-bottom:1px solid var(--line)}
-  .strat-tbl td{padding:7px 8px;border-bottom:1px solid rgba(34,43,57,.5);font-family:ui-monospace,monospace}
-  .strat-tbl td:first-child{font-family:inherit;color:var(--txt)}
-  .strat-tbl tr.hl{background:rgba(245,166,35,.06)}
-  .strat-tbl tr:last-child td{border-bottom:none}
-  .strat-tbl .up{color:var(--up)} .strat-tbl .down{color:var(--down)} .strat-tbl .warn{color:var(--atr7)}
-  .sc-note{margin-top:12px;font-size:12px;line-height:1.6;color:var(--txt-dim)}
-  .sc-note.dim{color:#5f6873;border-top:1px solid var(--line);padding-top:10px}
-  .sc-note b{color:var(--txt)}
-  .play-list{display:flex;flex-direction:column;gap:14px}
-  .play{padding-left:13px;border-left:2px solid var(--line)}
-  .pl-title{font-size:14px;font-weight:700;margin-bottom:5px}
-  .pl-title.up{color:var(--up)} .pl-title.down{color:var(--down)} .pl-title.warn{color:var(--atr7)}
-  .play p{font-size:13px;line-height:1.7;color:var(--txt-dim)}
-  .play p b{color:var(--txt);font-family:ui-monospace,monospace}
-  .play p b.up{color:var(--up)} .play p b.down{color:var(--down)}
-  .strategy-section .empty{color:var(--txt-dim);font-size:13px;padding:20px;text-align:center}
+  #priceChart { height:370px; width:100%; }
+  #atrChart   { height:180px; width:100%; }
+  #kdChart    { height:150px; width:100%; }
+  #macdChart  { height:150px; width:100%; }
+  .sub { border-top:1px solid var(--b1); }
+  .toggles { display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin-bottom:14px; }
+  .tg-label { font-size:11px; color:var(--t3); letter-spacing:.06em; text-transform:uppercase; margin-right:2px; }
+  .tg-div   { width:1px; height:16px; background:var(--b1); margin:0 3px; }
+  .strategy-section { margin:28px 0 10px; }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
+
+<!-- Navigation -->
+<nav class="nav" role="navigation" aria-label="主導覽">
+  <a href="index.html" class="nav-logo" aria-label="TWSE Analytics 首頁">
+    <span class="blink" aria-hidden="true"></span>
+    <span>TWSE Analytics</span>
+  </a>
+  <div class="nav-links">
+    <a href="index.html"     class="nav-link active" aria-current="page">個股走勢</a>
+    <a href="backtest.html"  class="nav-link">策略回測</a>
+  </div>
+</nav>
+
+<main class="page" id="main">
+
+  <!-- Page header: stock name + quote -->
+  <div class="page-header">
     <div class="title-block">
-      <div class="ticker">TWSE · 2330</div>
-      <h1 id="stockName">台積電 <span>TSMC</span></h1>
+      <div class="ticker-label" id="tickerLabel">TWSE/TPEX · 2330</div>
+      <h1 class="page-h1" id="stockName">台積電 <span>TSMC</span></h1>
     </div>
     <div class="title-block" style="align-items:flex-end">
-      <div class="quote">
-        <div class="price" id="lastPrice">—</div>
-        <div class="chg" id="lastChg">—</div>
+      <div class="quote-block">
+        <div class="price-big num" id="lastPrice">—</div>
+        <div class="chg-badge" id="lastChg">—</div>
       </div>
       <div class="asof" id="asOf">資料載入中…</div>
     </div>
-  </header>
+  </div>
 
+  <!-- Controls -->
   <div class="controls">
-    <div class="seg" id="rangeSeg">
+    <div class="seg" id="rangeSeg" role="group" aria-label="時間範圍">
       <button data-months="3">近 3 月</button>
       <button data-months="6" class="active">近 6 月</button>
       <button data-months="12">近 1 年</button>
     </div>
     <div class="spacer"></div>
-    <div class="search-box">
-      <div class="stock-input">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="color:var(--txt-dim);flex:none">
+    <div class="search-wrap" role="search">
+      <div class="search-row">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+             style="color:var(--t3);flex:none" aria-hidden="true">
           <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
         </svg>
-        <input id="stockInput" placeholder="輸入代碼或名稱，如 2330 或 台積電" autocomplete="off">
-        <button id="loadBtn">查詢</button>
+        <input id="stockInput" placeholder="輸入代碼或名稱" autocomplete="off" aria-label="股票搜尋" aria-autocomplete="list" aria-controls="suggest">
+        <button class="btn btn-sm" id="loadBtn">查詢</button>
       </div>
-      <div id="suggest" class="suggest" hidden></div>
+      <div id="suggest" class="suggest" hidden role="listbox" aria-label="搜尋建議"></div>
     </div>
   </div>
 
-  <div id="status" class="status loading"><span class="spin"></span>正在從證交所抓取 2330 台積電歷史資料…</div>
-
-  <div class="legend">
-    <div class="item"><span class="swatch" style="background:var(--up)"></span>K 線（紅漲綠跌，台股慣例）</div>
-    <div class="item"><span class="swatch" style="background:var(--atr7)"></span>ATR(7) <b id="lgAtr7">—</b></div>
-    <div class="item"><span class="swatch" style="background:var(--atr14)"></span>ATR(14) <b id="lgAtr14">—</b></div>
+  <!-- Status -->
+  <div id="status" class="status loading" role="status" aria-live="polite">
+    <span class="spin" aria-hidden="true"></span>正在從證交所抓取 2330 台積電歷史資料…
   </div>
 
-  <div class="toggles" id="toggles">
-    <span class="tg-label">疊加指標</span>
-    <button class="tg" data-k="ma5"   style="--c:var(--ma5)">MA5</button>
-    <button class="tg" data-k="ma10"  style="--c:var(--ma10)">MA10</button>
+  <!-- Chart legend -->
+  <div class="legend" aria-label="圖例">
+    <div class="legend-item"><span class="swatch" style="background:var(--up)"></span>K 線（紅漲綠跌）</div>
+    <div class="legend-item"><span class="swatch" style="background:var(--atr7)"></span>ATR(7) <b id="lgAtr7">—</b></div>
+    <div class="legend-item"><span class="swatch" style="background:var(--atr14)"></span>ATR(14) <b id="lgAtr14">—</b></div>
+  </div>
+
+  <!-- Indicator toggles -->
+  <div class="toggles" id="toggles" role="group" aria-label="疊加指標">
+    <span class="tg-label">疊加</span>
+    <button class="tg" data-k="ma5"   style="--c:var(--ma5)"  >MA5</button>
+    <button class="tg" data-k="ma10"  style="--c:var(--ma10)" >MA10</button>
     <button class="tg on" data-k="ma20" style="--c:var(--ma20)">MA20</button>
-    <button class="tg" data-k="ma60"  style="--c:var(--ma60)">MA60</button>
+    <button class="tg" data-k="ma60"  style="--c:var(--ma60)" >MA60</button>
     <button class="tg" data-k="ma120" style="--c:var(--ma120)">MA120</button>
     <button class="tg" data-k="ma240" style="--c:var(--ma240)">MA240</button>
-    <span class="tg-div"></span>
+    <span class="tg-div" aria-hidden="true"></span>
     <button class="tg on" data-k="bb"   style="--c:var(--bbBand)">布林通道</button>
-    <span class="tg-div"></span>
-    <button class="tg on" data-k="kd"   style="--c:#a78bfa">KD(9)</button>
+    <span class="tg-div" aria-hidden="true"></span>
+    <button class="tg on" data-k="kd"   style="--c:#a78bfa">KD</button>
     <button class="tg on" data-k="macd" style="--c:#4ade80">MACD</button>
   </div>
 
+  <!-- Main chart card -->
   <div class="card">
-    <div class="card-head"><h2>日 K 線</h2><h2 id="ohlcReadout" style="font-family:ui-monospace,monospace;color:var(--txt)"></h2></div>
-    <div id="priceChart"></div>
+    <div class="card-hd">
+      <h2>日 K 線</h2>
+      <span class="readout" id="ohlcReadout" aria-live="polite"></span>
+    </div>
+    <div id="priceChart" role="img" aria-label="K線圖"></div>
     <div class="sub">
-      <div class="card-head"><h2>ATR — 平均真實區間 (Average True Range)</h2><h2 id="atrReadout" style="font-family:ui-monospace,monospace"></h2></div>
-      <div id="atrChart"></div>
+      <div class="card-hd">
+        <h2>ATR — 平均真實區間</h2>
+        <span class="readout" id="atrReadout" aria-live="polite"></span>
+      </div>
+      <div id="atrChart" role="img" aria-label="ATR指標圖"></div>
     </div>
   </div>
 
-  <div class="card" id="kdCard" style="margin-top:12px">
-    <div class="card-head"><h2>KD — 隨機指標 (9)</h2><h2 id="kdReadout" style="font-family:ui-monospace,monospace"></h2></div>
-    <div id="kdChart"></div>
+  <!-- KD chart -->
+  <div class="card" id="kdCard" style="margin-top:10px">
+    <div class="card-hd">
+      <h2>KD 隨機指標 (9)</h2>
+      <span class="readout" id="kdReadout" aria-live="polite"></span>
+    </div>
+    <div id="kdChart" role="img" aria-label="KD指標圖"></div>
   </div>
 
-  <div class="card" id="macdCard" style="margin-top:12px">
-    <div class="card-head"><h2>MACD (12, 26, 9)</h2><h2 id="macdReadout" style="font-family:ui-monospace,monospace"></h2></div>
-    <div id="macdChart"></div>
+  <!-- MACD chart -->
+  <div class="card" id="macdCard" style="margin-top:10px">
+    <div class="card-hd">
+      <h2>MACD (12, 26, 9)</h2>
+      <span class="readout" id="macdReadout" aria-live="polite"></span>
+    </div>
+    <div id="macdChart" role="img" aria-label="MACD指標圖"></div>
   </div>
 
-  <div class="stats" id="stats"></div>
+  <!-- Stats -->
+  <div class="stat-grid" id="stats" style="margin-top:14px"></div>
 
-  <div id="fundamentals">
-    <div style="font-size:12px;color:var(--txt-dim);margin:14px 0 6px;letter-spacing:.5px;text-transform:uppercase">基本面參考（當日）</div>
+  <!-- Fundamentals -->
+  <div class="fund-section">
+    <div class="fund-label">基本面參考（當日）</div>
     <div class="fund-grid">
-      <div class="fund-card"><div class="fk">本益比 P/E</div><div class="fv" id="stat-pe" style="color:var(--txt-dim);font-size:14px">載入中…</div></div>
-      <div class="fund-card"><div class="fk">殖利率 Yield</div><div class="fv" id="stat-yield" style="color:var(--txt-dim);font-size:14px">載入中…</div></div>
-      <div class="fund-card"><div class="fk">股價淨值比 P/B</div><div class="fv" id="stat-pb" style="color:var(--txt-dim);font-size:14px">載入中…</div></div>
+      <div class="fund-card"><div class="fk">本益比 P/E</div><div class="fv num" id="stat-pe" style="color:var(--t2);font-size:14px">載入中…</div></div>
+      <div class="fund-card"><div class="fk">殖利率 Yield</div><div class="fv num" id="stat-yield" style="color:var(--t2);font-size:14px">載入中…</div></div>
+      <div class="fund-card"><div class="fk">股價淨值比 P/B</div><div class="fv num" id="stat-pb" style="color:var(--t2);font-size:14px">載入中…</div></div>
     </div>
   </div>
 
+  <!-- Strategy section -->
   <div class="strategy-section">
     <div class="ss-head">
       <h2>ATR 策略快速導覽</h2>
-      <span class="ss-sub">即時依當前股價與 ATR 計算具體點位</span>
+      <span class="ss-sub">依當前股價與 ATR(14) 計算具體點位</span>
     </div>
     <div id="strategy"></div>
   </div>
 
+  <!-- Disclaimer -->
   <div class="note">
     <h3>關於 ATR（平均真實區間）</h3>
-    <p>ATR 由 J. Welles Wilder 提出，衡量價格的<b style="color:var(--txt)">波動度</b>而非方向。先算每日「真實區間」TR = max(高−低, |高−昨收|, |低−昨收|)，再取 N 日的 Wilder 移動平均。</p>
-    <p>數值<b style="color:var(--txt)">放大</b>代表波動加劇（常見於趨勢啟動或急殺）；數值<b style="color:var(--txt)">收斂</b>代表進入盤整。ATR(7) 較敏感、反應快；ATR(14) 較平滑、為 Wilder 原始設定。實務上常用 ATR 設停損（如進場價 − 2×ATR）或評估部位風險。</p>
+    <p>ATR 由 J. Welles Wilder 提出，衡量<b>波動度</b>而非方向。先算每日真實區間 TR = max(高−低, |高−昨收|, |低−昨收|)，再取 N 日的 Wilder 移動平均。</p>
+    <p>數值<b>放大</b>代表波動加劇；數值<b>收斂</b>代表進入盤整。ATR(7) 較敏感；ATR(14) 為 Wilder 原始設定。</p>
     <div class="disc">
-      資料來源：臺灣證券交易所公開 STOCK_DAY API（經 CORS 代理轉送）。本頁僅供技術研究與教學，不構成投資建議。台股 K 線採紅漲綠跌。
+      資料來源：臺灣證券交易所 STOCK_DAY API（經 CORS 代理轉送）。本頁僅供技術研究，不構成投資建議。台股 K 線採紅漲綠跌。
     </div>
   </div>
-</div>
+</main>
 
+<script src="assets/shared.js"></script>
 <script>
-const COLORS = {
-  up:'#ef5350', down:'#26a69a',  // 台股：紅漲綠跌
-  atr7:'#f5a623', atr14:'#5b9dff',
-  grid:'#1b2230', text:'#7d8896', border:'#222b39',
-  // 均線顏色（依週期由短到長）
-  ma5:'#ff7eb6', ma10:'#f5a623', ma20:'#ffd23f', ma60:'#4ade80', ma120:'#38bdf8', ma240:'#a78bfa',
-  // 布林通道
-  bbMid:'#9aa6b8', bbBand:'#5b9dff',
-  // KD
-  kLine:'#a78bfa', dLine:'#f9a8d4',
-  // MACD
-  macdLine:'#5b9dff', signalLine:'#f5a623',
-};
-
-const MA_DEFS = [
-  {p:5,   key:'ma5',   color:COLORS.ma5},
-  {p:10,  key:'ma10',  color:COLORS.ma10},
-  {p:20,  key:'ma20',  color:COLORS.ma20},
-  {p:60,  key:'ma60',  color:COLORS.ma60},
-  {p:120, key:'ma120', color:COLORS.ma120},
-  {p:240, key:'ma240', color:COLORS.ma240},
-];
-
+/* ── Chart instances ── */
 let priceChart, atrChart, kdChart, macdChart;
 let candleSeries, atr7Series, atr14Series, volSeries;
 let kSeries, dSeries;
 let macdHistSeries, macdLineSeries, signalSeries;
+let maSeries={}, bbUpper, bbMid, bbLower;
+let lastBars=[], currentMonths=6;
 let lastKDHtml='', lastMACDHtml='', lastATRHtml='';
-let sessionProxy = null;      // session 內記憶有效 proxy，避免切換股票時重新探測
-let maSeries = {};            // {ma5: series, ...}
-let bbUpper, bbMid, bbLower;  // 布林通道三線
-let lastBars = [];            // 保存最近一次 render 的資料，供切換指標時重算
-let currentMonths = 6;
-// 跨圖查值：以時間字串為 key，讓各圖互查當日數值
-let atrMap7 = new Map(), atrMap14 = new Map(), ohlcMap = new Map();
-let kdMap = new Map(), dMap = new Map(), macdMap = new Map(), signalMap = new Map();
-// render() 期間設 true，避免 setData 觸發的中間 range 事件互相干擾
-let loading = false;
+let atrMap7=new Map(), atrMap14=new Map(), ohlcMap=new Map();
+let kdMap=new Map(), dMap=new Map(), macdMap=new Map(), signalMap=new Map();
+let loading=false, syncing=false;
 
-// 指標開關狀態（預設：20MA + 布林通道 + KD + MACD 開）
-const toggles = {
-  ma5:false, ma10:false, ma20:true, ma60:false, ma120:false, ma240:false,
-  bb:true, kd:true, macd:true
-};
+const toggles={ma5:false,ma10:false,ma20:true,ma60:false,ma120:false,ma240:false,bb:true,kd:true,macd:true};
 
+/* ── Chart library CDNs ── */
+const CHART_CDNS=[
+  'https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js',
+  'https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/lightweight-charts/4.1.3/lightweight-charts.standalone.production.js'
+];
+function loadScript(src){
+  return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=()=>rej(new Error('CDN failed: '+src)); document.head.appendChild(s); });
+}
+async function ensureChartLib(){
+  if(window.LightweightCharts) return true;
+  for(const url of CHART_CDNS){ try{ await loadScript(url); if(window.LightweightCharts) return true; }catch{} }
+  return false;
+}
+
+/* ── Chart init ── */
 function initCharts(){
-  const PRICE_AXIS_W = 76;   // 兩張圖共用的固定右軸寬度 -> 繪圖區左右邊界一致
-  const common = {
-    layout:{ background:{type:'solid',color:'transparent'}, textColor:COLORS.text, fontFamily:'ui-monospace, monospace' },
+  const common={
+    layout:{ background:{type:'solid',color:'transparent'}, textColor:COLORS.text, fontFamily:'JetBrains Mono, ui-monospace, monospace' },
     grid:{ vertLines:{color:COLORS.grid}, horzLines:{color:COLORS.grid} },
-    rightPriceScale:{ borderColor:COLORS.border, minimumWidth:PRICE_AXIS_W, alignLabels:true },
+    rightPriceScale:{ borderColor:COLORS.border, minimumWidth:78, alignLabels:true },
     leftPriceScale:{ visible:false },
     timeScale:{ borderColor:COLORS.border, timeVisible:false, rightOffset:2, fixLeftEdge:true, fixRightEdge:true },
     crosshair:{ mode:0,
-      vertLine:{color:'#3a4658',width:1,style:2,labelBackgroundColor:'#2a3340'},
-      horzLine:{color:'#3a4658',width:1,style:2,labelBackgroundColor:'#2a3340'} }
+      vertLine:{color:'#2a3650',width:1,style:2,labelBackgroundColor:'#1e2a3a'},
+      horzLine:{color:'#2a3650',width:1,style:2,labelBackgroundColor:'#1e2a3a'} }
   };
 
-  priceChart = LightweightCharts.createChart(document.getElementById('priceChart'), common);
+  priceChart=LightweightCharts.createChart(document.getElementById('priceChart'),common);
+  bbUpper=priceChart.addLineSeries({color:COLORS.bbBand,lineWidth:1,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});
+  bbLower=priceChart.addLineSeries({color:COLORS.bbBand,lineWidth:1,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});
+  bbMid  =priceChart.addLineSeries({color:COLORS.bbMid, lineWidth:1,lineStyle:2,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});
+  candleSeries=priceChart.addCandlestickSeries({upColor:COLORS.up,downColor:COLORS.dn,borderUpColor:COLORS.up,borderDownColor:COLORS.dn,wickUpColor:COLORS.up,wickDownColor:COLORS.dn});
+  MA_DEFS.forEach(d=>{ maSeries[d.key]=priceChart.addLineSeries({color:d.color,lineWidth:1.5,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false}); });
+  volSeries=priceChart.addHistogramSeries({priceFormat:{type:'volume'},priceScaleId:'',color:'rgba(125,136,150,.25)'});
+  volSeries.priceScale().applyOptions({scaleMargins:{top:0.82,bottom:0}});
 
-  // 布林通道（先建立，使其在 K 線下層）：上下軌較淡，中軌虛線
-  bbUpper = priceChart.addLineSeries({ color:COLORS.bbBand, lineWidth:1, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false });
-  bbLower = priceChart.addLineSeries({ color:COLORS.bbBand, lineWidth:1, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false });
-  bbMid   = priceChart.addLineSeries({ color:COLORS.bbMid,  lineWidth:1, lineStyle:2, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false });
+  atrChart=LightweightCharts.createChart(document.getElementById('atrChart'),common);
+  const atrFmt={priceFormat:{type:'price',precision:2,minMove:0.01},priceLineVisible:false,lastValueVisible:false};
+  atr7Series =atrChart.addLineSeries({color:COLORS.atr7, lineWidth:2,...atrFmt});
+  atr14Series=atrChart.addLineSeries({color:COLORS.atr14,lineWidth:2,...atrFmt});
 
-  candleSeries = priceChart.addCandlestickSeries({
-    upColor:COLORS.up, downColor:COLORS.down,
-    borderUpColor:COLORS.up, borderDownColor:COLORS.down,
-    wickUpColor:COLORS.up, wickDownColor:COLORS.down
-  });
+  kdChart=LightweightCharts.createChart(document.getElementById('kdChart'),common);
+  const kdFmt={priceFormat:{type:'price',precision:2,minMove:0.01},priceLineVisible:false,lastValueVisible:false};
+  kSeries=kdChart.addLineSeries({color:COLORS.kLine,lineWidth:2,...kdFmt});
+  dSeries=kdChart.addLineSeries({color:COLORS.dLine,lineWidth:2,...kdFmt});
+  kSeries.createPriceLine({price:80,color:'rgba(200,200,200,.15)',lineWidth:1,lineStyle:2,axisLabelVisible:false});
+  kSeries.createPriceLine({price:20,color:'rgba(200,200,200,.15)',lineWidth:1,lineStyle:2,axisLabelVisible:false});
 
-  // 均線（建立在 K 線之上）
-  MA_DEFS.forEach(d=>{
-    maSeries[d.key] = priceChart.addLineSeries({
-      color:d.color, lineWidth:1.5, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false
-    });
-  });
+  const macdFmt={priceFormat:{type:'price',precision:2,minMove:0.01},priceLineVisible:false,lastValueVisible:false};
+  macdChart=LightweightCharts.createChart(document.getElementById('macdChart'),common);
+  macdChart.timeScale().applyOptions({fixLeftEdge:false,fixRightEdge:false});
+  macdHistSeries=macdChart.addHistogramSeries({...macdFmt});
+  macdLineSeries=macdChart.addLineSeries({color:COLORS.macdLine,lineWidth:1.5,...macdFmt});
+  signalSeries  =macdChart.addLineSeries({color:COLORS.sigLine, lineWidth:1.5,...macdFmt});
+  macdLineSeries.createPriceLine({price:0,color:'rgba(200,200,200,.15)',lineWidth:1,lineStyle:0,axisLabelVisible:false});
 
-  volSeries = priceChart.addHistogramSeries({
-    priceFormat:{type:'volume'}, priceScaleId:'',
-    color:'rgba(125,136,150,.28)'
-  });
-  volSeries.priceScale().applyOptions({ scaleMargins:{top:0.82, bottom:0} });
-
-  atrChart = LightweightCharts.createChart(document.getElementById('atrChart'), common);
-  // ATR — 繼承 common 的 fixLeftEdge（暖身短，影響小）
-  const atrFmt = { priceFormat:{ type:'price', precision:2, minMove:0.01 }, priceLineVisible:false, lastValueVisible:false };
-  atr7Series  = atrChart.addLineSeries({ color:COLORS.atr7,  lineWidth:2, ...atrFmt });
-  atr14Series = atrChart.addLineSeries({ color:COLORS.atr14, lineWidth:2, ...atrFmt });
-
-  // KD 圖 — 繼承 common 的 fixLeftEdge（暖身 9 根，影響小）
-  kdChart = LightweightCharts.createChart(document.getElementById('kdChart'), common);
-  const kdFmt = { priceFormat:{ type:'price', precision:2, minMove:0.01 }, priceLineVisible:false, lastValueVisible:false };
-  kSeries = kdChart.addLineSeries({ color:COLORS.kLine, lineWidth:2, ...kdFmt });
-  dSeries = kdChart.addLineSeries({ color:COLORS.dLine, lineWidth:2, ...kdFmt });
-  kSeries.createPriceLine({ price:80, color:'rgba(200,200,200,.18)', lineWidth:1, lineStyle:2, axisLabelVisible:false });
-  kSeries.createPriceLine({ price:20, color:'rgba(200,200,200,.18)', lineWidth:1, lineStyle:2, axisLabelVisible:false });
-
-  // MACD 圖 — 暖身 35 根（約 7 週），必須關掉 fixLeftEdge，
-  // 否則 setVisibleRange 在顯示全部 6 個月時會被夾到 MACD 資料起始日，造成 bar spacing 不一致
-  const macdFmt = { priceFormat:{ type:'price', precision:2, minMove:0.01 }, priceLineVisible:false, lastValueVisible:false };
-  macdChart = LightweightCharts.createChart(document.getElementById('macdChart'), common);
-  macdChart.timeScale().applyOptions({ fixLeftEdge:false, fixRightEdge:false });
-  macdHistSeries = macdChart.addHistogramSeries({ ...macdFmt });
-  macdLineSeries = macdChart.addLineSeries({ color:COLORS.macdLine,   lineWidth:1.5, ...macdFmt });
-  signalSeries   = macdChart.addLineSeries({ color:COLORS.signalLine, lineWidth:1.5, ...macdFmt });
-  macdLineSeries.createPriceLine({ price:0, color:'rgba(200,200,200,.18)', lineWidth:1, lineStyle:0, axisLabelVisible:false });
-
-  // 時間軸同步：用 subscribeVisibleTimeRangeChange + setVisibleRange
-  // loading 旗標防止 setData 期間觸發的中間 range 事件互相干擾
+  /* Time-axis sync */
   const allCharts=[priceChart,atrChart,kdChart,macdChart];
   allCharts.forEach(src=>{
     src.timeScale().subscribeVisibleTimeRangeChange(r=>{
-      if(syncing || loading || !r) return; syncing=true;
-      allCharts.forEach(dst=>{
-        if(dst===src || !dst) return;
-        try{ dst.timeScale().setVisibleRange(r); }catch(e){}
-      });
+      if(syncing||loading||!r) return; syncing=true;
+      allCharts.forEach(dst=>{ if(dst!==src&&dst) try{dst.timeScale().setVisibleRange(r);}catch(e){} });
       syncing=false;
       requestAnimationFrame(syncAxisWidth);
     });
   });
 
-  // 十字游標：上圖移動 -> 顯示 OHLC + 連動下圖游標；下圖移動 -> 顯示 ATR + 連動上圖游標
-  const ohlcEl = document.getElementById('ohlcReadout');
-  const atrEl  = document.getElementById('atrReadout');
-
-  function showOHLC(d){
-    if(!d){ ohlcEl.textContent=''; return; }
-    const dir = d.close>=d.open ? COLORS.up : COLORS.down;
-    ohlcEl.innerHTML = `<span style="color:${dir}">開 ${d.open}　高 ${d.high}　低 ${d.low}　收 ${d.close}</span>`;
-  }
-  function showATR(v7,v14){
-    if(v7==null && v14==null){ atrEl.innerHTML=lastATRHtml; return; }
-    atrEl.innerHTML =
-      `<span style="color:${COLORS.atr7}">ATR(7) ${v7!=null?v7.toFixed(2):'—'}</span>` +
-      `　<span style="color:${COLORS.atr14}">ATR(14) ${v14!=null?v14.toFixed(2):'—'}</span>`;
-  }
+  /* Crosshair sync */
+  const ohlcEl=document.getElementById('ohlcReadout');
+  const atrEl =document.getElementById('atrReadout');
+  function showOHLC(d){ if(!d){ohlcEl.textContent='';return;} const c=d.close>=d.open?COLORS.up:COLORS.dn; ohlcEl.innerHTML=`<span style="color:${c}">開 ${d.open}　高 ${d.high}　低 ${d.low}　收 ${d.close}</span>`; }
+  function showATR(v7,v14){ if(v7==null&&v14==null){atrEl.innerHTML=lastATRHtml;return;} atrEl.innerHTML=`<span style="color:${COLORS.atr7}">ATR(7) ${v7!=null?v7.toFixed(2):'—'}</span>　<span style="color:${COLORS.atr14}">ATR(14) ${v14!=null?v14.toFixed(2):'—'}</span>`; }
 
   let syncingCH=false;
-
-  // 統一更新所有讀數 readout（time 有值：顯示當日，time 無值：恢復最後數值）
   function updateAllReadouts(time){
-    const t = time ? String(time) : null;
+    const t=time?String(time):null;
     if(t){
-      // OHLC
       showOHLC(ohlcMap.get(t)||null);
-      // ATR
       showATR(atrMap7.get(t)??null, atrMap14.get(t)??null);
-      // KD
-      const k=kdMap.get(t), dv=dMap.get(t);
-      document.getElementById('kdReadout').innerHTML=
-        `<span style="color:${COLORS.kLine}">K ${k!=null?k.toFixed(2):'—'}</span>　<span style="color:${COLORS.dLine}">D ${dv!=null?dv.toFixed(2):'—'}</span>`;
-      // MACD
-      const m=macdMap.get(t), s=signalMap.get(t);
-      document.getElementById('macdReadout').innerHTML=
-        `<span style="color:${COLORS.macdLine}">DIF ${m!=null?m.toFixed(3):'—'}</span>　<span style="color:${COLORS.signalLine}">DEA ${s!=null?s.toFixed(3):'—'}</span>`;
+      const k=kdMap.get(t),dv=dMap.get(t);
+      document.getElementById('kdReadout').innerHTML=`<span style="color:${COLORS.kLine}">K ${k!=null?k.toFixed(2):'—'}</span>　<span style="color:${COLORS.dLine}">D ${dv!=null?dv.toFixed(2):'—'}</span>`;
+      const m=macdMap.get(t),s=signalMap.get(t);
+      document.getElementById('macdReadout').innerHTML=`<span style="color:${COLORS.macdLine}">DIF ${m!=null?m.toFixed(3):'—'}</span>　<span style="color:${COLORS.sigLine}">DEA ${s!=null?s.toFixed(3):'—'}</span>`;
     }else{
       showOHLC(null); showATR(null,null);
       document.getElementById('kdReadout').innerHTML=lastKDHtml;
       document.getElementById('macdReadout').innerHTML=lastMACDHtml;
     }
   }
-
-  // 統一同步其他三圖十字線位置
-  function syncAllCrosshairs(sourceChart, time){
+  function syncAllCrosshairs(src, time){
     if(syncingCH) return; syncingCH=true;
-    const targets=[
-      { chart:priceChart,  series:candleSeries,    getVal:t=>ohlcMap.get(t)?.close   },
-      { chart:atrChart,    series:atr14Series,      getVal:t=>atrMap14.get(t)         },
-      { chart:kdChart,     series:kSeries,          getVal:t=>kdMap.get(t)            },
-      { chart:macdChart,   series:macdLineSeries,   getVal:t=>macdMap.get(t)          },
-    ];
-    targets.forEach(({chart, series, getVal})=>{
-      if(chart===sourceChart || !chart || !series) return;
-      if(time!==undefined){
-        const val=getVal(String(time));
-        chart.setCrosshairPosition(val!=null?val:0, time, series);
-      }else{
-        chart.clearCrosshairPosition();
-      }
+    [{chart:priceChart,series:candleSeries,get:t=>ohlcMap.get(t)?.close},
+     {chart:atrChart,  series:atr14Series, get:t=>atrMap14.get(t)},
+     {chart:kdChart,   series:kSeries,     get:t=>kdMap.get(t)},
+     {chart:macdChart, series:macdLineSeries,get:t=>macdMap.get(t)}
+    ].forEach(({chart,series,get})=>{
+      if(chart===src||!chart||!series) return;
+      if(time!==undefined){ const v=get(String(time)); chart.setCrosshairPosition(v!=null?v:0,time,series); }
+      else chart.clearCrosshairPosition();
     });
     syncingCH=false;
   }
+  allCharts.forEach(chart=>{ chart.subscribeCrosshairMove(p=>{ updateAllReadouts(p.time); syncAllCrosshairs(chart,p.time); }); });
 
-  // 四圖統一訂閱
-  [priceChart, atrChart, kdChart, macdChart].forEach(chart=>{
-    chart.subscribeCrosshairMove(p=>{
-      updateAllReadouts(p.time);
-      syncAllCrosshairs(chart, p.time);
+  window.addEventListener('resize',()=>{
+    ['priceChart','atrChart','kdChart','macdChart'].forEach(id=>{
+      const el=document.getElementById(id); if(el&&window[id.replace('Chart',''+'Chart')]) try{window[id.replace('Chart',''+'Chart')]}catch{}
     });
-  });
-
-  window.addEventListener('resize', ()=>{
     priceChart.applyOptions({width:document.getElementById('priceChart').clientWidth});
     atrChart.applyOptions({width:document.getElementById('atrChart').clientWidth});
-    if(kdChart)   kdChart.applyOptions({width:document.getElementById('kdChart').clientWidth});
-    if(macdChart) macdChart.applyOptions({width:document.getElementById('macdChart').clientWidth});
-    [60, 180, 400].forEach(ms => setTimeout(syncAxisWidth, ms));
+    kdChart&&kdChart.applyOptions({width:document.getElementById('kdChart').clientWidth});
+    macdChart&&macdChart.applyOptions({width:document.getElementById('macdChart').clientWidth});
+    [60,200,400].forEach(ms=>setTimeout(syncAxisWidth,ms));
   });
 }
 
-let syncing=false;
-
-// 主動從 priceChart 取得時間 range 並強制同步指標圖（用於 render 後初始化）
 function forceSync(){
-  if(syncing || !priceChart) return;
-  const r = priceChart.timeScale().getVisibleRange();
-  if(!r) return;
+  if(syncing||!priceChart) return;
+  const r=priceChart.timeScale().getVisibleRange(); if(!r) return;
   syncing=true;
-  [atrChart, kdChart, macdChart].forEach(dst=>{
-    if(!dst) return;
-    try{ dst.timeScale().setVisibleRange(r); }catch(e){}
-  });
+  [atrChart,kdChart,macdChart].forEach(dst=>{ if(dst) try{dst.timeScale().setVisibleRange(r);}catch(e){} });
   syncing=false;
 }
 
-// 對齊所有圖右側價格軸寬度（確保繪圖區左右起點一致）
-// retries：若本次有修改就繼續 rAF retry，直到穩定或次數耗盡
 function syncAxisWidth(retries=10){
   const charts=[priceChart,atrChart,kdChart,macdChart].filter(Boolean);
   if(charts.length<2) return;
   try{
-    const widths=charts.map(c=>{ try{ return c.priceScale('right').width()||0; }catch(e){ return 0; } });
-    const w=Math.max(...widths,76);
-    let changed=false;
-    charts.forEach((c,i)=>{
-      if(Math.abs(widths[i]-w)>0.5){
-        c.priceScale('right').applyOptions({minimumWidth:w});
-        changed=true;
-      }
-    });
-    // 有圖更新了最小寬度 → 等下一 frame 再確認是否已收斂
-    if(changed && retries>0) requestAnimationFrame(()=>syncAxisWidth(retries-1));
+    const widths=charts.map(c=>{ try{return c.priceScale('right').width()||0;}catch{return 0;} });
+    const w=Math.max(...widths,78); let changed=false;
+    charts.forEach((c,i)=>{ if(Math.abs(widths[i]-w)>0.5){c.priceScale('right').applyOptions({minimumWidth:w});changed=true;} });
+    if(changed&&retries>0) requestAnimationFrame(()=>syncAxisWidth(retries-1));
   }catch(e){}
 }
 
-// ---------- ATR 計算 (Wilder) ----------
-function computeATR(bars, period){
-  const tr=[];
-  for(let i=0;i<bars.length;i++){
-    if(i===0){ tr.push(bars[i].high-bars[i].low); continue; }
-    const pc=bars[i-1].close;
-    tr.push(Math.max(bars[i].high-bars[i].low, Math.abs(bars[i].high-pc), Math.abs(bars[i].low-pc)));
-  }
-  const out=[];
-  let atr=null;
-  for(let i=0;i<bars.length;i++){
-    if(i<period-1){ continue; }
-    if(i===period-1){
-      let sum=0; for(let j=0;j<period;j++) sum+=tr[j];
-      atr=sum/period;
-    } else {
-      atr=(atr*(period-1)+tr[i])/period;  // Wilder smoothing
-    }
-    out.push({ time:bars[i].time, value:+atr.toFixed(3) });
-  }
-  return out;
-}
-
-// ---------- 簡單移動平均 (SMA) ----------
-function computeSMA(bars, period){
-  const out=[]; let sum=0;
-  for(let i=0;i<bars.length;i++){
-    sum+=bars[i].close;
-    if(i>=period) sum-=bars[i-period].close;
-    if(i>=period-1) out.push({ time:bars[i].time, value:+(sum/period).toFixed(2) });
-  }
-  return out;
-}
-
-// ---------- 布林通道 (20, 2σ) ----------
-function computeBoll(bars, period=20, mult=2){
-  const up=[], mid=[], low=[];
-  for(let i=period-1;i<bars.length;i++){
-    let sum=0; for(let j=i-period+1;j<=i;j++) sum+=bars[j].close;
-    const ma=sum/period;
-    let v=0; for(let j=i-period+1;j<=i;j++){ const d=bars[j].close-ma; v+=d*d; }
-    const sd=Math.sqrt(v/period);
-    const t=bars[i].time;
-    mid.push({time:t, value:+ma.toFixed(2)});
-    up.push ({time:t, value:+(ma+mult*sd).toFixed(2)});
-    low.push({time:t, value:+(ma-mult*sd).toFixed(2)});
-  }
-  return {up, mid, low};
-}
-
-// ---------- EMA ----------
-function computeEMA(values, period){
-  const k=2/(period+1); const out=[];
-  let ema=null, sum=0, cnt=0;
-  for(let i=0;i<values.length;i++){
-    if(ema===null){ sum+=values[i]; cnt++; if(cnt===period){ ema=sum/period; out.push(ema); } }
-    else{ ema=values[i]*k+ema*(1-k); out.push(ema); }
-  }
-  return out;  // 長度 = values.length - period + 1
-}
-
-// ---------- KD 隨機指標（台灣慣用：RSV 指數平滑，初值 50）----------
-function computeKD(bars, period=9, initVal=50){
-  const kArr=[], dArr=[]; let k=initVal, d=initVal;
-  for(let i=0;i<bars.length;i++){
-    if(i<period-1) continue;
-    let lo=bars[i].low, hi=bars[i].high;
-    for(let j=i-period+1;j<=i;j++){ lo=Math.min(lo,bars[j].low); hi=Math.max(hi,bars[j].high); }
-    const rsv=hi===lo?50:(bars[i].close-lo)/(hi-lo)*100;
-    k=k*2/3+rsv/3; d=d*2/3+k/3;
-    kArr.push({time:bars[i].time, value:+k.toFixed(2)});
-    dArr.push({time:bars[i].time, value:+d.toFixed(2)});
-  }
-  return {k:kArr, d:dArr};
-}
-
-// ---------- MACD (12, 26, 9) ----------
-function computeMACD(bars, fast=12, slow=26, sig=9){
-  const closes=bars.map(b=>b.close);
-  const fastEMA=computeEMA(closes,fast);   // 對應 bars[fast-1..]
-  const slowEMA=computeEMA(closes,slow);   // 對應 bars[slow-1..]
-  const macdRaw=slowEMA.map((sv,i)=>fastEMA[i+(slow-fast)]-sv);
-  const sigArr=computeEMA(macdRaw,sig);
-  const startBar=slow-1+sig-1;
-  const macdData=[], signalData=[], histData=[];
-  for(let i=0;i<sigArr.length;i++){
-    const t=bars[startBar+i].time;
-    const m=macdRaw[sig-1+i], s=sigArr[i], h=+(m-s).toFixed(3);
-    macdData.push({time:t,value:+m.toFixed(3)});
-    signalData.push({time:t,value:+s.toFixed(3)});
-    histData.push({time:t,value:h,color:h>=0?'rgba(239,83,80,.65)':'rgba(38,166,154,.65)'});
-  }
-  return {macd:macdData,signal:signalData,hist:histData};
-}
-
-// ---------- 資料抓取：證交所 STOCK_DAY，逐月，透過 CORS 代理 ----------
-const PROXIES = [
-  {name:'allorigins', make:u => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u)},
-  {name:'corsproxy',  make:u => 'https://corsproxy.io/?url=' + encodeURIComponent(u)},
-  {name:'codetabs',   make:u => 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(u)},
-  {name:'thingproxy', make:u => 'https://thingproxy.freeboard.io/fetch/' + u},
-];
-
-function twseURL(stockNo, yyyymmdd){
-  return `https://www.twse.com.tw/exchangeReport/STOCK_DAY?response=json&date=${yyyymmdd}&stockNo=${stockNo}`;
-}
-
-// ---------- 股票對照表（代碼 ↔ 名稱），供模糊搜尋 ----------
-// 內嵌備援清單：常見熱門股，萬一線上清單抓取失敗仍可用名稱搜尋
-const FALLBACK_LIST = [
-  ['0050','元大台灣50','上市'],['0056','元大高股息','上市'],['00878','國泰永續高股息','上市'],
-  ['2330','台積電','上市'],['2317','鴻海','上市'],['2454','聯發科','上市'],
-  ['2308','台達電','上市'],['2303','聯電','上市'],['2891','中信金','上市'],
-  ['2882','國泰金','上市'],['2881','富邦金','上市'],['2884','玉山金','上市'],
-  ['2412','中華電','上市'],['2301','光寶科','上市'],['2382','廣達','上市'],
-  ['2357','華碩','上市'],['2395','研華','上市'],['3008','大立光','上市'],
-  ['2327','國巨','上市'],['2379','瑞昱','上市'],['3231','緯創','上市'],
-  ['2376','技嘉','上市'],['2377','微星','上市'],['2356','英業達','上市'],
-  ['2474','可成','上市'],['2409','友達','上市'],['3034','聯詠','上市'],
-  ['3037','欣興','上市'],['3045','台灣大','上市'],['4904','遠傳','上市'],
-  ['1301','台塑','上市'],['1303','南亞','上市'],['1326','台化','上市'],
-  ['2002','中鋼','上市'],['2603','長榮','上市'],['2609','陽明','上市'],
-  ['2615','萬海','上市'],['2610','華航','上市'],['2618','長榮航','上市'],
-  ['1216','統一','上市'],['2912','統一超','上市'],['2207','和泰車','上市'],
-  ['2105','正新','上市'],['9910','豐泰','上市'],['9904','寶成','上市'],
-  ['2886','兆豐金','上市'],['2892','第一金','上市'],['2880','華南金','上市'],
-  ['2885','元大金','上市'],['2887','台新金','上市'],['2890','永豐金','上市'],
-  ['2883','開發金','上市'],['5880','合庫金','上市'],['2801','彰銀','上市'],
-  ['2345','智邦','上市'],['3661','世芯-KY','上市'],['3443','創意','上市'],
-  ['6415','矽力-KY','上市'],['8046','南電','上市'],['3017','奇鋐','上市'],
-  ['2059','川湖','上市'],['1590','亞德客-KY','上市'],['2360','致茂','上市'],
-  ['6446','藥華藥','上市'],['4763','材料-KY','上市'],['1101','台泥','上市'],
-  ['1102','亞泥','上市'],['2408','南亞科','上市'],['2344','華邦電','上市'],
-  ['3711','日月光投控','上市'],['2329','華泰','上市'],['6669','緯穎','上市'],
-  ['3653','健策','上市'],['8299','群聯','上櫃'],['5274','信驊','上櫃'],
-  ['6510','精測','上櫃'],['4966','譜瑞-KY','上櫃'],['5269','祥碩','上市'],
-  ['6488','環球晶','上櫃'],['3105','穩懋','上櫃'],['6477','安集','上櫃'],
-  ['6531','愛普','上櫃'],['8016','矽創','上市'],['3293','鈊象','上櫃'],
-  ['1565','精華','上櫃'],['4743','合一','上櫃'],['6505','台塑化','上市'],
-];
-
-let STOCK_LIST = FALLBACK_LIST.map(([code,name,mk])=>({code,name,mk}));
-let stockListReady = false;
-
-// 線上抓「上市」清單：STOCK_DAY_ALL（含代碼+名稱）
-function twseAllURL(){ return 'https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL'; }
-// 線上抓「上櫃」清單
-function tpexAllURL(){ return 'https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes'; }
-
-async function tryJSON(proxy, url, ms=9000){
-  const res = await fetchTimeout(proxy.make(url), ms);
-  if(!res.ok) throw new Error('HTTP '+res.status);
-  return JSON.parse(await res.text());
-}
-
-async function loadStockList(){
-  // 只取代碼為 4 位數字的個股（排除權證、ETN 等）
-  const map = new Map();
-  STOCK_LIST.forEach(s=>map.set(s.code,s));   // 先放備援
-  for(const p of PROXIES){
-    let got=false;
-    // 上市
-    try{
-      const arr = await tryJSON(p, twseAllURL());
-      if(Array.isArray(arr)){
-        arr.forEach(r=>{
-          const code=r.Code||r.證券代號, name=r.Name||r.證券名稱;
-          if(/^\d{4,6}$/.test(code) && name) map.set(code,{code,name:name.trim(),mk:'上市'});
-        });
-        got=true;
-      }
-    }catch(e){}
-    // 上櫃
-    try{
-      const arr = await tryJSON(p, tpexAllURL());
-      if(Array.isArray(arr)){
-        arr.forEach(r=>{
-          const code=r.SecuritiesCompanyCode||r.Code||r.股票代號, name=r.CompanyName||r.Name||r.名稱;
-          if(/^\d{4,6}$/.test(code) && name) map.set(code,{code,name:String(name).trim(),mk:'上櫃'});
-        });
-      }
-    }catch(e){}
-    if(got){ break; }   // 上市抓到就夠了，上櫃失敗也沒關係（備援裡有熱門上櫃股）
-  }
-  STOCK_LIST = [...map.values()];
-  stockListReady = true;
-}
-
-// 模糊搜尋：代碼前綴、名稱包含、名稱字元順序子序列
-function searchStocks(q){
-  q=q.trim();
-  if(!q) return [];
-  const isNum=/^\d+$/.test(q);
-  const ql=q.toLowerCase();
-  const scored=[];
-  for(const s of STOCK_LIST){
-    let score=-1;
-    if(isNum){
-      if(s.code===q) score=100;
-      else if(s.code.startsWith(q)) score=80;
-      else if(s.code.includes(q)) score=40;
-    }else{
-      const nm=s.name.toLowerCase();
-      if(nm===ql) score=100;
-      else if(nm.startsWith(ql)) score=85;
-      else if(nm.includes(ql)) score=70;
-      else if(subseq(ql,nm)) score=45;        // 模糊：字元順序子序列
-    }
-    if(score>=0) scored.push({s,score});
-  }
-  scored.sort((a,b)=> b.score-a.score || a.s.code.localeCompare(b.s.code));
-  return scored.slice(0,12).map(x=>x.s);
-}
-function subseq(needle,hay){
-  let i=0; for(const ch of hay){ if(ch===needle[i]) i++; if(i===needle.length) return true; } return false;
-}
-
-// 帶逾時的 fetch：超過 ms 毫秒就放棄，避免整頁吊死
-async function fetchTimeout(url, ms){
-  const ctrl = new AbortController();
-  const id = setTimeout(()=>ctrl.abort(), ms);
-  try{
-    const res = await fetch(url, {cache:'no-store', signal:ctrl.signal});
-    return res;
-  } finally { clearTimeout(id); }
-}
-
-async function fetchViaProxy(proxy, stockNo, ymd, ms=8000){
-  const res = await fetchTimeout(proxy.make(twseURL(stockNo, ymd)), ms);
-  if(!res.ok) throw new Error('HTTP '+res.status);
-  const txt = await res.text();
-  const json = JSON.parse(txt);
-  // "Value is null" / "No data." = TWSE 本身尚無資料（月初、新股等），
-  // 屬正常業務情況，代理本身並未失敗 → 回傳空物件，讓 ingest 跳過即可
-  if(json.stat==='Value is null'||json.stat==='No data.'||json.stat==='查詢日期大於今日') return {data:null, stat:json.stat};
-  if(json.stat && json.stat!=='OK') throw new Error(json.stat);
-  if(!json.data) throw new Error('無資料');
-  return json;
-}
-
-// ---------- localStorage 快取（已完結月份當日有效，當月 4 小時）----------
-const CACHE_NS='twse_v2';
-function cacheGet(key){
-  try{
-    const raw=localStorage.getItem(`${CACHE_NS}:${key}`);
-    if(!raw) return null;
-    const {val,exp}=JSON.parse(raw);
-    if(Date.now()>exp){ localStorage.removeItem(`${CACHE_NS}:${key}`); return null; }
-    return val;
-  }catch{ return null; }
-}
-function cacheSet(key,val,ttlMs){
-  try{
-    localStorage.setItem(`${CACHE_NS}:${key}`,JSON.stringify({val,exp:Date.now()+ttlMs}));
-  }catch{
-    // 容量不足時清掉最舊的一半 key
-    try{
-      const keys=Object.keys(localStorage).filter(k=>k.startsWith(CACHE_NS));
-      keys.sort().slice(0,Math.ceil(keys.length/2)).forEach(k=>localStorage.removeItem(k));
-      localStorage.setItem(`${CACHE_NS}:${key}`,JSON.stringify({val,exp:Date.now()+ttlMs}));
-    }catch{}
-  }
-}
-function cacheTTL(ymd){
-  const now=new Date();
-  const ym=`${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}`;
-  if(ymd.startsWith(ym)) return 4*3600_000;   // 當月：4 小時
-  const eod=new Date(now.getFullYear(),now.getMonth(),now.getDate(),23,59,59,999);
-  return Math.max(eod-Date.now(), 3600_000);   // 過去月份：當日午夜到期
-}
-
-// ---------- 並聯賽跑所有 proxy，取第一個成功的 ----------
-async function raceProxies(stockNo, ymd){
-  try{
-    return await Promise.any(
-      PROXIES.map(p=>fetchViaProxy(p,stockNo,ymd,8000).then(json=>({proxy:p,json})))
-    );
-  }catch{ return null; }
-}
-
-function rocToISO(roc){           // "115/05/02" -> "2026-05-02"
-  const [y,m,d]=roc.split('/');
-  return `${+y+1911}-${m}-${d}`;
-}
-function num(s){ return parseFloat(String(s).replace(/,/g,'')); }
-
-async function loadData(stockNo, months){
-  const now=new Date();
-  const reqs=[];
-  for(let k=0;k<months;k++){
-    const d=new Date(now.getFullYear(),now.getMonth()-k,1);
-    reqs.push(`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}01`);
-  }
-
-  const rowsMap=new Map();
-  let name=null, okCount=0;
-  const ingest=(j,ymd)=>{
-    if(!j||!j.data) return;
-    okCount++;
-    if(j.title){ const mm=j.title.match(/\d{2,}\s+(\S+?)\s/); if(mm) name=mm[1]; }
-    for(const row of j.data){
-      const open=num(row[3]),high=num(row[4]),low=num(row[5]),close=num(row[6]),vol=num(row[1]);
-      if([open,high,low,close].some(isNaN)) continue;
-      rowsMap.set(rocToISO(row[0]),{time:rocToISO(row[0]),open,high,low,close,volume:isNaN(vol)?0:Math.round(vol/1000)});
-    }
-  };
-
-  // ① 先從快取補齊已有的月份
-  const uncached=[];
-  for(const ymd of reqs){
-    const hit=cacheGet(`${stockNo}:${ymd}`);
-    if(hit){ ingest(hit,ymd); } else { uncached.push(ymd); }
-  }
-  if(!uncached.length){
-    if(!rowsMap.size) throw new Error('快取異常，請重新整理');
-    const bars=[...rowsMap.values()].sort((a,b)=>a.time<b.time?-1:1);
-    return {bars,name,okCount,total:reqs.length,source:'快取'};
-  }
-
-  setStatus('loading','<span class="spin"></span>正在尋找可用資料通道…');
-
-  // 輔助：有實際資料才寫快取（"Value is null" 空回應不寫，避免月初快取到無資料）
-  const tryCache=(key,j,ymd)=>{ if(j&&j.data) cacheSet(key,j,cacheTTL(ymd)); };
-
-  // ② 確認 session proxy 仍可用，否則並聯賽跑找最快的
-  // 若最新一個月剛好無資料（月初），往前找第一個有資料的月份作為探測目標
-  let probeIdx=0;
-  let wp=sessionProxy;
-  if(wp){
-    try{
-      const j=await fetchViaProxy(wp,stockNo,uncached[0],6000);
-      ingest(j,uncached[0]); tryCache(`${stockNo}:${uncached[0]}`,j,uncached[0]);
-      uncached.shift();
-    }catch{ wp=null; sessionProxy=null; }
-  }
-  if(!wp){
-    // 依序嘗試 uncached 中的月份，直到找到可確認 proxy 的回應
-    let r=null;
-    for(probeIdx=0; probeIdx<uncached.length; probeIdx++){
-      r=await raceProxies(stockNo,uncached[probeIdx]);
-      if(r) break;   // 成功（可能是有資料或是 Value is null 空回應，代理均算有效）
-    }
-    if(!r) throw new Error('PROXY_ALL_FAILED');
-    wp=r.proxy; sessionProxy=wp;
-    ingest(r.json,uncached[probeIdx]); tryCache(`${stockNo}:${uncached[probeIdx]}`,r.json,uncached[probeIdx]);
-    uncached.splice(probeIdx,1);  // 移除已探測的月份
-  }
-
-  // ③ 並行抓剩餘月份；個別失敗時依序嘗試其他 proxy（逐月 retry）
-  let done=reqs.length-uncached.length;
-  const total=reqs.length;
-  setStatus('loading',`<span class="spin"></span>通道：${wp.name}　已取得 ${done}/${total} 個月…`);
-  await Promise.allSettled(uncached.map(ymd=>
-    fetchViaProxy(wp,stockNo,ymd,8000)
-      .then(j=>{ ingest(j,ymd); tryCache(`${stockNo}:${ymd}`,j,ymd); })
-      .catch(async ()=>{
-        // 主 proxy 失敗 → 依序試其他 proxy
-        for(const p of PROXIES){
-          if(p===wp) continue;
-          try{
-            const j=await fetchViaProxy(p,stockNo,ymd,6000);
-            ingest(j,ymd); tryCache(`${stockNo}:${ymd}`,j,ymd); return;
-          }catch{}
-        }
-        // 所有 proxy 都失敗 → 靜默跳過此月
-      })
-      .finally(()=>{ done++; setStatus('loading',`<span class="spin"></span>通道：${wp.name}　已取得 ${done}/${total} 個月…`); })
-  ));
-
-  if(!rowsMap.size) throw new Error('未取得任何有效資料');
-  const bars=[...rowsMap.values()].sort((a,b)=>a.time<b.time?-1:1);
-  return {bars,name,okCount,total};
-}
-
-// ---------- 三層資料源統一入口 ----------
-async function fetchWithFallback(stockNo, months){
-  // 來源 1：TWSE（有快取 + session proxy + 逐月 retry）
-  try{ return await loadData(stockNo,months); }
-  catch(e){ /* 任何 TWSE 失敗都嘗試備援，不再只限 PROXY_ALL_FAILED */ }
-
-  // 來源 2：Yahoo Finance
-  setStatus('loading','<span class="spin"></span>證交所無資料，切換至 Yahoo Finance…');
-  try{ return await loadDataYahoo(stockNo,months); }catch{}
-
-  // 來源 3：FinMind
-  setStatus('loading','<span class="spin"></span>切換至 FinMind 備援…');
-  return await loadDataFinMind(stockNo,months);
-}
-
-// ---------- Yahoo Finance 備援資料源 ----------
-async function loadDataYahoo(stockNo, months){
-  const end=Math.floor(Date.now()/1000);
-  const start=end-months*31*86400;
-  for(const sym of [stockNo+'.TW', stockNo+'.TWO']){
-    const url=`https://query1.finance.yahoo.com/v8/finance/chart/${sym}?period1=${start}&period2=${end}&interval=1d&includePrePost=false`;
-    for(const p of PROXIES){
-      try{
-        const json=await tryJSON(p,url,10000);
-        const result=json?.chart?.result?.[0];
-        if(!result?.timestamp?.length) continue;
-        const {timestamp,indicators:{quote:[q]}}=result;
-        const bars=[];
-        for(let i=0;i<timestamp.length;i++){
-          if(!q.open?.[i]||!q.close?.[i]) continue;
-          const dt=new Date(timestamp[i]*1000);
-          bars.push({
-            time:`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`,
-            open:+q.open[i].toFixed(2), high:+q.high[i].toFixed(2),
-            low:+q.low[i].toFixed(2),  close:+q.close[i].toFixed(2),
-            volume:Math.round((q.volume[i]||0)/1000)
-          });
-        }
-        if(bars.length<5) continue;
-        bars.sort((a,b)=>a.time<b.time?-1:1);
-        return {bars,name:result.meta?.shortName||null,okCount:1,total:1,source:'Yahoo Finance'};
-      }catch(e){}
-    }
-  }
-  throw new Error('Yahoo Finance 備援失敗');
-}
-
-// ---------- FinMind 備援資料源（免費 API，支援 CORS）----------
-async function loadDataFinMind(stockNo, months){
-  const end=new Date();
-  const start=new Date(end.getFullYear(),end.getMonth()-months,1);
-  const fmt=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  const url=`https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockPrice&data_id=${stockNo}&start_date=${fmt(start)}&end_date=${fmt(end)}`;
-  const attempts=[
-    ()=>fetchTimeout(url,12000).then(r=>r.ok?r.json():Promise.reject('http err')),
-    ...PROXIES.map(p=>()=>tryJSON(p,url,12000))
-  ];
-  for(const attempt of attempts){
-    try{
-      const json=await attempt();
-      if(!json?.data?.length) continue;
-      const bars=json.data
-        .filter(r=>r.open&&r.close)
-        .map(r=>({
-          time:r.date,
-          open:+r.open, high:+r.max, low:+r.min, close:+r.close,
-          volume:Math.round((+r.Trading_Volume||0)/1000)
-        }));
-      if(bars.length<5) continue;
-      bars.sort((a,b)=>a.time<b.time?-1:1);
-      return {bars,name:null,okCount:1,total:1,source:'FinMind'};
-    }catch{}
-  }
-  throw new Error('所有資料來源均無法連線，請檢查網路後重試');
-}
-
-// ---------- 基本面：TWSE BWIBBU_d（本益比、殖利率、股價淨值比）----------
-async function loadFundamentals(stockNo){
-  const url='https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_d';
-  function parse(arr){
-    if(!Array.isArray(arr)) return null;
-    // 欄位名稱依 TWSE OpenAPI 版本略有差異，兩種都接受
-    const r=arr.find(x=>(x.Code||x['證券代號']||'').trim()===stockNo.trim());
-    if(!r) return null;
-    const pe  = r.PEratio       ?? r['本益比']      ?? '';
-    const yld = r.DividendYield ?? r['殖利率(%)']   ?? r['殖利率'] ?? '';
-    const pb  = r.PBratio       ?? r['股價淨值比']  ?? '';
-    return {
-      pe:  String(pe).trim()  || '—',
-      yld: String(yld).trim() || '—',
-      pb:  String(pb).trim()  || '—',
-    };
-  }
-
-  // 1. 直接呼叫（TWSE OpenAPI 有 CORS 標頭，不需代理）
-  try{
-    const res=await fetchTimeout(url, 12000);
-    if(res.ok){
-      const result=parse(await res.json());
-      if(result) return result;
-    }
-  }catch(e){}
-
-  // 2. 透過 CORS 代理 fallback
-  for(const p of PROXIES){
-    try{
-      const result=parse(await tryJSON(p,url,12000));
-      if(result) return result;
-    }catch(e){}
-  }
-  return null;
-}
-
+/* ── Render ── */
 function render(bars){
-  lastBars = bars;
-  loading = true;   // 抑制 setData 期間各圖自動 fit 觸發的 range 事件
+  lastBars=bars; loading=true;
   candleSeries.setData(bars.map(b=>({time:b.time,open:b.open,high:b.high,low:b.low,close:b.close})));
-  volSeries.setData(bars.map(b=>({time:b.time, value:b.volume,
-    color: b.close>=b.open ? 'rgba(239,83,80,.22)' : 'rgba(38,166,154,.22)'})));
-
+  volSeries.setData(bars.map(b=>({time:b.time,value:b.volume,color:b.close>=b.open?'rgba(239,83,80,.2)':'rgba(38,166,154,.2)'})));
   const a7=computeATR(bars,7), a14=computeATR(bars,14);
   atr7Series.setData(a7); atr14Series.setData(a14);
-
-  // 建立跨圖查值表（供十字游標連動時互相顯示當日數值）
   atrMap7.clear(); atrMap14.clear(); ohlcMap.clear();
-  a7.forEach(x=>atrMap7.set(String(x.time), x.value));
-  a14.forEach(x=>atrMap14.set(String(x.time), x.value));
-  bars.forEach(b=>ohlcMap.set(String(b.time), {open:b.open,high:b.high,low:b.low,close:b.close}));
-
-  applyOverlays();  // 依開關套用 MA / 布林通道
-
-  // KD
+  a7.forEach(x=>atrMap7.set(String(x.time),x.value));
+  a14.forEach(x=>atrMap14.set(String(x.time),x.value));
+  bars.forEach(b=>ohlcMap.set(String(b.time),{open:b.open,high:b.high,low:b.low,close:b.close}));
+  applyOverlays();
   const kdData=computeKD(bars,9);
   kSeries.setData(kdData.k); dSeries.setData(kdData.d);
   kdMap.clear(); dMap.clear();
-  kdData.k.forEach(x=>kdMap.set(String(x.time), x.value));
-  kdData.d.forEach(x=>dMap.set(String(x.time), x.value));
+  kdData.k.forEach(x=>kdMap.set(String(x.time),x.value));
+  kdData.d.forEach(x=>dMap.set(String(x.time),x.value));
   const lastK=kdData.k[kdData.k.length-1]?.value, lastD=kdData.d[kdData.d.length-1]?.value;
   lastKDHtml=`<span style="color:${COLORS.kLine}">K ${lastK?.toFixed(2)??'—'}</span>　<span style="color:${COLORS.dLine}">D ${lastD?.toFixed(2)??'—'}</span>`;
   document.getElementById('kdReadout').innerHTML=lastKDHtml;
-
-  // MACD
   const macdResult=computeMACD(bars,12,26,9);
   macdHistSeries.setData(macdResult.hist);
   macdLineSeries.setData(macdResult.macd);
   signalSeries.setData(macdResult.signal);
   macdMap.clear(); signalMap.clear();
-  macdResult.macd.forEach(x=>macdMap.set(String(x.time), x.value));
-  macdResult.signal.forEach(x=>signalMap.set(String(x.time), x.value));
-  const lastM=macdResult.macd[macdResult.macd.length-1]?.value;
-  const lastS=macdResult.signal[macdResult.signal.length-1]?.value;
-  lastMACDHtml=`<span style="color:${COLORS.macdLine}">DIF ${lastM?.toFixed(3)??'—'}</span>　<span style="color:${COLORS.signalLine}">DEA ${lastS!=null?lastS.toFixed(3):'—'}</span>`;
+  macdResult.macd.forEach(x=>macdMap.set(String(x.time),x.value));
+  macdResult.signal.forEach(x=>signalMap.set(String(x.time),x.value));
+  const lastM=macdResult.macd[macdResult.macd.length-1]?.value, lastS=macdResult.signal[macdResult.signal.length-1]?.value;
+  lastMACDHtml=`<span style="color:${COLORS.macdLine}">DIF ${lastM?.toFixed(3)??'—'}</span>　<span style="color:${COLORS.sigLine}">DEA ${lastS!=null?lastS.toFixed(3):'—'}</span>`;
   document.getElementById('macdReadout').innerHTML=lastMACDHtml;
-
-  loading = false;  // 開放事件同步
+  loading=false;
   priceChart.timeScale().fitContent();
-  // fitContent() 非同步套用；用 rAF + 多個 setTimeout 強制在 layout 穩定後同步各圖
   requestAnimationFrame(()=>{ forceSync(); syncAxisWidth(10); });
-  [80, 200, 400].forEach(ms => setTimeout(()=>{ forceSync(); syncAxisWidth(); }, ms));
+  [80,200,400].forEach(ms=>setTimeout(()=>{ forceSync(); syncAxisWidth(); },ms));
 
-  // 報價 + 統計
+  /* Update stats */
   const last=bars[bars.length-1], prev=bars[bars.length-2]||last;
-  const chg=last.close-prev.close, pct=chg/prev.close*100;
-  const up=chg>=0;
+  const chg=last.close-prev.close, pct=chg/prev.close*100, up=chg>=0;
   document.getElementById('lastPrice').textContent=last.close.toFixed(2);
   const chgEl=document.getElementById('lastChg');
-  chgEl.className='chg '+(up?'up':'down');
+  chgEl.className='chg-badge '+(up?'up':'dn');
   chgEl.textContent=`${up?'▲':'▼'} ${Math.abs(chg).toFixed(2)} (${up?'+':''}${pct.toFixed(2)}%)`;
   document.getElementById('asOf').textContent=`最新交易日 ${last.time}　·　共 ${bars.length} 個交易日`;
-
   const lastA7=a7[a7.length-1]?.value, lastA14=a14[a14.length-1]?.value;
   document.getElementById('lgAtr7').textContent=lastA7?.toFixed(2)??'—';
   document.getElementById('lgAtr14').textContent=lastA14?.toFixed(2)??'—';
   lastATRHtml=`<span style="color:${COLORS.atr7}">ATR(7) ${lastA7?.toFixed(2)??'—'}</span>　<span style="color:${COLORS.atr14}">ATR(14) ${lastA14?.toFixed(2)??'—'}</span>`;
   document.getElementById('atrReadout').innerHTML=lastATRHtml;
-
   const hi=Math.max(...bars.map(b=>b.high)), lo=Math.min(...bars.map(b=>b.low));
-  const atrPct = lastA14 ? (lastA14/last.close*100) : null;
-  const stats=[
+  const atrPct=lastA14?(lastA14/last.close*100):null;
+  document.getElementById('stats').innerHTML=[
     {k:'最新收盤',v:last.close.toFixed(2)},
     {k:'區間最高',v:hi.toFixed(2)},
     {k:'區間最低',v:lo.toFixed(2)},
     {k:'ATR(7)',v:lastA7?.toFixed(2)??'—'},
     {k:'ATR(14)',v:lastA14?.toFixed(2)??'—'},
-    {k:'ATR(14) 佔股價', v:(atrPct?atrPct.toFixed(2):'—'), suf:'%'},
+    {k:'ATR/股價',v:(atrPct?atrPct.toFixed(2):'—'),suf:'%'},
     {k:'K 值',v:lastK?.toFixed(2)??'—'},
     {k:'D 值',v:lastD?.toFixed(2)??'—'},
-  ];
-  document.getElementById('stats').innerHTML=stats.map(s=>
-    `<div class="stat"><div class="k">${s.k}</div><div class="v">${s.v}<small>${s.suf||''}</small></div></div>`).join('');
-
-  buildStrategy(bars, lastA14, lastA7);  // 產生 ATR 策略導覽
+  ].map(s=>`<div class="stat-item"><div class="stat-k">${s.k}</div><div class="stat-v num">${s.v}<small>${s.suf||''}</small></div></div>`).join('');
+  buildStrategy(bars,lastA14,lastA7);
 }
 
-// 依 toggles 狀態套用/清除疊圖
 function applyOverlays(){
   if(!lastBars.length) return;
-  MA_DEFS.forEach(d=>{
-    if(toggles[d.key]) maSeries[d.key].setData(computeSMA(lastBars, d.p));
-    else maSeries[d.key].setData([]);
-  });
-  if(toggles.bb){
-    const b=computeBoll(lastBars,20,2);
-    bbUpper.setData(b.up); bbMid.setData(b.mid); bbLower.setData(b.low);
-  }else{
-    bbUpper.setData([]); bbMid.setData([]); bbLower.setData([]);
-  }
+  MA_DEFS.forEach(d=>{ maSeries[d.key].setData(toggles[d.key]?computeSMA(lastBars,d.p):[]); });
+  if(toggles.bb){ const b=computeBoll(lastBars,20,2); bbUpper.setData(b.up); bbMid.setData(b.mid); bbLower.setData(b.low); }
+  else{ bbUpper.setData([]); bbMid.setData([]); bbLower.setData([]); }
 }
 
-// ---------- ATR 策略導覽：用當前股價與 ATR 算出具體點位 ----------
 function buildStrategy(bars, atr14, atr7){
-  const el=document.getElementById('strategy');
-  if(!el) return;
-  if(!atr14){ el.innerHTML='<div class="empty">資料不足，無法計算策略點位。</div>'; return; }
-  const last=bars[bars.length-1];
-  const price=last.close;
-  const atr=atr14;
-  const f=n=>n.toFixed(1);
-
-  // 布林通道現值
+  const el=document.getElementById('strategy'); if(!el) return;
+  if(!atr14){ el.innerHTML='<div style="color:var(--t2);font-size:13px;padding:20px;text-align:center">資料不足，無法計算策略點位。</div>'; return; }
+  const price=bars[bars.length-1].close, atr=atr14, f=n=>n.toFixed(1);
   const boll=computeBoll(bars,20,2);
-  const bUp=boll.up[boll.up.length-1]?.value;
-  const bMid=boll.mid[boll.mid.length-1]?.value;
-  const bLow=boll.low[boll.low.length-1]?.value;
-  const bandWidth = (bUp&&bLow&&bMid)? ((bUp-bLow)/bMid*100):null;
-
-  // ATR 停損停利點位（以現價為假設進場價）
-  const slTight = price - 1.5*atr;
-  const slStd   = price - 2*atr;
-  const slWide  = price - 3*atr;
-  const tp1     = price + 1.5*atr;
-  const tp2     = price + 3*atr;
-  const trail   = price - 2.5*atr;
-
-  const atrPct=(atr/price*100);
-
-  el.innerHTML = `
-    <div class="strat-grid">
-      <div class="strat-card">
-        <div class="sc-head"><span class="dot" style="background:var(--atr14)"></span>ATR 停損／停利（以現價 ${f(price)} 為假設進場價）</div>
-        <table class="strat-tbl">
-          <tr><th>策略</th><th>計算</th><th>點位</th></tr>
-          <tr><td>積極停損</td><td>進場 − 1.5×ATR</td><td class="down">${f(slTight)}</td></tr>
-          <tr class="hl"><td>標準停損</td><td>進場 − 2×ATR</td><td class="down">${f(slStd)}</td></tr>
-          <tr><td>寬鬆停損</td><td>進場 − 3×ATR</td><td class="down">${f(slWide)}</td></tr>
-          <tr><td>移動停利</td><td>波段高點 − 2.5×ATR</td><td class="warn">最高價−${f(2.5*atr)}</td></tr>
-          <tr><td>停利目標一</td><td>進場 + 1.5×ATR（1:1）</td><td class="up">${f(tp1)}</td></tr>
-          <tr class="hl"><td>停利目標二</td><td>進場 + 3×ATR（2:1）</td><td class="up">${f(tp2)}</td></tr>
-        </table>
-        <div class="sc-note">目前 ATR(14)=${f(atr)}，約為股價的 <b>${atrPct.toFixed(2)}%</b>。波動越大，停損就該拉越開，否則容易被洗出場。</div>
-      </div>
-
-      <div class="strat-card">
-        <div class="sc-head"><span class="dot" style="background:var(--bbBand)"></span>布林通道現值（20, 2σ）</div>
-        <table class="strat-tbl">
-          <tr><th>軌道</th><th>點位</th><th>距現價</th></tr>
-          <tr><td>上軌 +2σ</td><td class="up">${bUp?f(bUp):'—'}</td><td>${bUp?((bUp-price)/price*100).toFixed(1)+'%':'—'}</td></tr>
-          <tr><td>中軌 20MA</td><td>${bMid?f(bMid):'—'}</td><td>${bMid?((bMid-price)/price*100).toFixed(1)+'%':'—'}</td></tr>
-          <tr><td>下軌 −2σ</td><td class="down">${bLow?f(bLow):'—'}</td><td>${bLow?((bLow-price)/price*100).toFixed(1)+'%':'—'}</td></tr>
-        </table>
-        <div class="sc-note">帶寬 ${bandWidth?bandWidth.toFixed(1)+'%':'—'}。${bandWidthComment(bandWidth)}</div>
-      </div>
+  const bUp=boll.up[boll.up.length-1]?.value, bMid=boll.mid[boll.mid.length-1]?.value, bLow=boll.low[boll.low.length-1]?.value;
+  const bw=(bUp&&bLow&&bMid)?((bUp-bLow)/bMid*100):null;
+  const slT=price-1.5*atr, slS=price-2*atr, slW=price-3*atr, tp1=price+1.5*atr, tp2=price+3*atr;
+  const bwC=bw==null?'':bw<8?'帶寬偏窄，能量壓縮中，留意變盤。':bw>22?'帶寬偏寬，波動劇烈，追高殺低風險高。':'帶寬適中，趨勢延續機率較高。';
+  el.innerHTML=`
+  <div class="strat-grid">
+    <div class="strat-card">
+      <div class="sc-head"><span class="dot" style="background:var(--atr14)"></span>ATR 停損／停利（假設進場價 ${f(price)}）</div>
+      <table class="tbl">
+        <tr><th>策略</th><th>計算</th><th>點位</th></tr>
+        <tr><td>積極停損</td><td>進場 − 1.5×ATR</td><td class="dn">${f(slT)}</td></tr>
+        <tr class="hl"><td>標準停損</td><td>進場 − 2×ATR</td><td class="dn">${f(slS)}</td></tr>
+        <tr><td>寬鬆停損</td><td>進場 − 3×ATR</td><td class="dn">${f(slW)}</td></tr>
+        <tr><td>停利目標一</td><td>進場 + 1.5×ATR</td><td class="up">${f(tp1)}</td></tr>
+        <tr class="hl"><td>停利目標二</td><td>進場 + 3×ATR（2:1）</td><td class="up">${f(tp2)}</td></tr>
+      </table>
+      <div class="sc-note">ATR(14) = ${f(atr)}，約佔股價 <b>${(atr/price*100).toFixed(2)}%</b>。</div>
     </div>
-
-    <div class="strat-card full">
-      <div class="sc-head"><span class="dot" style="background:var(--ma60)"></span>ATR × 布林通道 搭配實戰</div>
-      <div class="play-list">
-        <div class="play">
-          <div class="pl-title up">突破上軌 — 順勢做多</div>
-          <p>股價站上上軌 <b>${bUp?f(bUp):'—'}</b> 且 ATR 同步放大，代表帶量突破、波動轉強。<br>
-          停損設在 <b class="down">${bMid?f(bMid):f(slStd)}</b>（中軌）或 <b class="down">進場−2×ATR=${f(slStd)}</b>，兩者取較近的當作防守。<br>
-          停利用移動停損：股價每創高，就把出場點上移到「波段高點 − 2.5×ATR」，讓獲利奔跑。</p>
-        </div>
-        <div class="play">
-          <div class="pl-title down">跌破下軌 — 弱勢提防</div>
-          <p>股價跌破下軌 <b>${bLow?f(bLow):'—'}</b>、ATR 急放，通常是急殺。手上有單應已在 <b class="down">${f(slStd)}</b> 觸發停損。<br>
-          想搶反彈者，等股價重新站回下軌內、ATR 開始收斂再進，停損抓在當日最低 − 1×ATR。</p>
-        </div>
-        <div class="play">
-          <div class="pl-title warn">通道收口 — 觀望等變盤</div>
-          <p>當帶寬被壓縮（目前 ${bandWidth?bandWidth.toFixed(1)+'%':'—'}）、ATR 落到低檔，代表能量壓縮、隨時變盤。<br>
-          此時不預設方向，等股價帶量突破上／下軌、ATR 同步放大再順勢進場，避免在盤整中被雙巴。</p>
-        </div>
-      </div>
-      <div class="sc-note dim">教學用途，非投資建議。點位以「現價＝進場價」假設計算，實務上請以你的實際成本與當下 ATR 重算；倍數（1.5/2/3×）可依個股波動與風險偏好調整。</div>
+    <div class="strat-card">
+      <div class="sc-head"><span class="dot" style="background:var(--bbBand)"></span>布林通道現值（20, 2σ）</div>
+      <table class="tbl">
+        <tr><th>軌道</th><th>點位</th><th>距現價</th></tr>
+        <tr><td>上軌 +2σ</td><td class="up">${bUp?f(bUp):'—'}</td><td>${bUp?((bUp-price)/price*100).toFixed(1)+'%':'—'}</td></tr>
+        <tr><td>中軌 20MA</td><td>${bMid?f(bMid):'—'}</td><td>${bMid?((bMid-price)/price*100).toFixed(1)+'%':'—'}</td></tr>
+        <tr><td>下軌 −2σ</td><td class="dn">${bLow?f(bLow):'—'}</td><td>${bLow?((bLow-price)/price*100).toFixed(1)+'%':'—'}</td></tr>
+      </table>
+      <div class="sc-note">帶寬 ${bw?bw.toFixed(1)+'%':'—'}。${bwC}</div>
     </div>
-  `;
-}
-function bandWidthComment(bw){
-  if(bw==null) return '';
-  if(bw<8) return '帶寬偏窄，能量壓縮中，留意變盤。';
-  if(bw>22) return '帶寬偏寬，波動劇烈，追高殺低風險高。';
-  return '帶寬適中，趨勢延續機率較高。';
+  </div>
+  <div class="strat-card" style="margin-top:0">
+    <div class="sc-head"><span class="dot" style="background:var(--ma60)"></span>ATR × 布林通道 實戰參考</div>
+    <div class="play-list">
+      <div class="play"><div class="pl-title up">突破上軌 — 順勢做多</div>
+        <p>站上上軌 <b>${bUp?f(bUp):'—'}</b> 且 ATR 放大：停損設中軌 <b class="dn">${bMid?f(bMid):f(slS)}</b> 或進場−2×ATR=<b class="dn">${f(slS)}</b>。</p></div>
+      <div class="play"><div class="pl-title dn">跌破下軌 — 弱勢提防</div>
+        <p>跌破下軌 <b>${bLow?f(bLow):'—'}</b>、ATR 急放，手上有單應已在 <b class="dn">${f(slS)}</b> 觸發停損。</p></div>
+      <div class="play"><div class="pl-title warn">通道收口 — 觀望等變盤</div>
+        <p>帶寬壓縮（${bw?bw.toFixed(1)+'%':'—'}）、ATR 低檔，等帶量突破方向後再進場。</p></div>
+    </div>
+    <div class="sc-note dim">教學用途，非投資建議。點位以「現價＝進場價」假設計算。</div>
+  </div>`;
 }
 
 function setStatus(type,html){
@@ -1220,206 +447,78 @@ function setStatus(type,html){
   el.className='status '+type; el.innerHTML=html;
 }
 
-async function run(stockNo, months){
-  try{
-    const result=await fetchWithFallback(stockNo,months);
-    const {bars,name,okCount,total,source='證交所'}=result;
-    const listed=STOCK_LIST.find(s=>s.code===stockNo);
-    const showName=(listed&&listed.name)||name||stockNo;
-    document.getElementById('stockName').innerHTML=`${showName} <span>${stockNo}</span>`;
-    document.querySelector('.ticker').textContent=`TWSE/TPEX · ${stockNo}`;
-    render(bars);
-    setStatus('ok',`✓ 已載入 ${showName}（${stockNo}）${bars.length} 個交易日。資料源：${source}。`);
-    // 非同步載入基本面（不阻塞圖表）
-    const setFund=(id,txt,ok=true)=>{
-      const el=document.getElementById(id);
-      el.textContent=txt;
-      el.style.color=ok?'':'var(--txt-dim)';
-      el.style.fontSize=ok?'':'13px';
-    };
-    setFund('stat-pe','載入中…',false);
-    setFund('stat-yield','載入中…',false);
-    setFund('stat-pb','載入中…',false);
-    loadFundamentals(stockNo).then(f=>{
-      if(!f){
-        setFund('stat-pe','—',false);
-        setFund('stat-yield','—',false);
-        setFund('stat-pb','—',false);
-        return;
-      }
-      setFund('stat-pe', f.pe);
-      setFund('stat-yield', f.yld!=='—'?f.yld+'%':f.yld);
-      setFund('stat-pb', f.pb);
-    }).catch(()=>{
-      setFund('stat-pe','無法取得',false);
-      setFund('stat-yield','無法取得',false);
-      setFund('stat-pb','無法取得',false);
-    });
-  }catch(e){
-    setStatus('err',`⚠ 抓取失敗：${e.message}。<br>請按「載入」重試或換網路環境。`);
-  }
-}
-
-// ---------- 動態載入圖表庫（多 CDN 備援）----------
-const CHART_CDNS = [
-  'https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js',
-  'https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/lightweight-charts/4.1.3/lightweight-charts.standalone.production.js'
-];
-function loadScript(src){
-  return new Promise((resolve,reject)=>{
-    const s=document.createElement('script');
-    s.src=src; s.onload=resolve; s.onerror=()=>reject(new Error('load fail: '+src));
-    document.head.appendChild(s);
-  });
-}
-async function ensureChartLib(){
-  if(window.LightweightCharts) return true;
-  for(const url of CHART_CDNS){
-    try{ await loadScript(url); if(window.LightweightCharts) return true; }
-    catch(e){ /* 試下一個 */ }
-  }
-  return false;
-}
-
+/* ── Controls wiring ── */
+let SELECTED='2330';
 function wireControls(){
   document.getElementById('rangeSeg').addEventListener('click',e=>{
     const b=e.target.closest('button'); if(!b) return;
     document.querySelectorAll('#rangeSeg button').forEach(x=>x.classList.remove('active'));
     b.classList.add('active');
     currentMonths=+b.dataset.months;
-    if(SELECTED) run(SELECTED, currentMonths);
+    if(SELECTED) runChart(SELECTED,currentMonths);
   });
-
-  // 指標開關
   document.getElementById('toggles').addEventListener('click',e=>{
     const b=e.target.closest('.tg'); if(!b) return;
     const k=b.dataset.k;
-    toggles[k]=!toggles[k];
-    b.classList.toggle('on', toggles[k]);
-    if(k==='kd'){
-      document.getElementById('kdCard').style.display=toggles.kd?'':'none';
-    } else if(k==='macd'){
-      document.getElementById('macdCard').style.display=toggles.macd?'':'none';
-    } else {
-      applyOverlays();
+    toggles[k]=!toggles[k]; b.classList.toggle('on',toggles[k]);
+    if(k==='kd')   document.getElementById('kdCard').style.display=toggles.kd?'':'none';
+    else if(k==='macd') document.getElementById('macdCard').style.display=toggles.macd?'':'none';
+    else applyOverlays();
+  });
+
+  wireSearchBox({
+    inputId:'stockInput', suggestId:'suggest', btnId:'loadBtn',
+    onSelect(s){
+      SELECTED=s.code;
+      document.getElementById('stockInput').value=`${s.code} ${s.name}`;
+      runChart(s.code, currentMonths);
     }
   });
-
-  const input=document.getElementById('stockInput');
-  const box=document.getElementById('suggest');
-  let items=[], active=-1;
-
-  function renderSuggest(list){
-    items=list; active=-1;
-    if(!list.length){
-      box.innerHTML = stockListReady
-        ? `<div class="empty">找不到符合的股票</div>`
-        : `<div class="empty">清單載入中…可直接輸入 4 位數代碼查詢</div>`;
-      box.hidden=false; return;
-    }
-    box.innerHTML = list.map((s,i)=>
-      `<div class="opt" data-i="${i}" data-code="${s.code}">
-         <span class="code">${s.code}</span>
-         <span class="nm">${s.name}</span>
-         <span class="mk">${s.mk||''}</span>
-       </div>`).join('');
-    box.hidden=false;
-  }
-  function closeSuggest(){ box.hidden=true; active=-1; }
-  function highlight(){
-    [...box.querySelectorAll('.opt')].forEach((el,i)=>el.classList.toggle('active',i===active));
-  }
-  function choose(s){
-    SELECTED=s.code;
-    input.value = `${s.code} ${s.name}`;
-    closeSuggest();
-    run(s.code, currentMonths);
-  }
-
-  input.addEventListener('input',()=>{
-    const q=input.value.trim();
-    if(!q){ closeSuggest(); return; }
-    // 若使用者輸入「2301 光寶科」這種已選格式，取代碼部分搜尋
-    const qCode=q.split(/\s+/)[0];
-    renderSuggest(searchStocks(/^\d{1,4}$/.test(qCode)&&qCode!==q?qCode:q));
-  });
-  input.addEventListener('focus',()=>{ if(input.value.trim()) input.dispatchEvent(new Event('input')); });
-
-  input.addEventListener('keydown',e=>{
-    if(box.hidden){
-      if(e.key==='Enter') submitRaw();
-      return;
-    }
-    if(e.key==='ArrowDown'){ e.preventDefault(); active=Math.min(active+1,items.length-1); highlight(); }
-    else if(e.key==='ArrowUp'){ e.preventDefault(); active=Math.max(active-1,0); highlight(); }
-    else if(e.key==='Enter'){
-      e.preventDefault();
-      if(active>=0 && items[active]) choose(items[active]);
-      else if(items.length===1) choose(items[0]);
-      else submitRaw();
-    }
-    else if(e.key==='Escape'){ closeSuggest(); }
-  });
-
-  box.addEventListener('click',e=>{
-    const opt=e.target.closest('.opt'); if(!opt) return;
-    choose(items[+opt.dataset.i]);
-  });
-  document.addEventListener('click',e=>{
-    if(!e.target.closest('.search-box')) closeSuggest();
-  });
-
-  // 直接送出（沒選下拉時）：辨識 4~6 位全數字代碼（含 ETF），或用名稱比對
-  function submitRaw(){
-    const q=input.value.trim(); if(!q) return;
-    const firstWord=q.split(/\s+/)[0];
-    if(/^\d{4,6}$/.test(firstWord)){ SELECTED=firstWord; closeSuggest(); run(SELECTED,currentMonths); return; }
-    const hits=searchStocks(q);
-    if(hits.length){ choose(hits[0]); }
-    else setStatus('err','⚠ 找不到「'+q+'」。請輸入 4~6 位股票代碼或名稱。');
-  }
-
-  document.getElementById('loadBtn').addEventListener('click',submitRaw);
 }
 
-let SELECTED='2330';
-
-(async function boot(){
-  setStatus('loading','<span class="spin"></span>正在載入圖表元件…');
-  const ok = await ensureChartLib();
-  if(!ok){
-    setStatus('err','⚠ 無法載入圖表元件（lightweight-charts）。<br>很可能是你的網路環境擋掉了 CDN（jsdelivr / unpkg / cdnjs）。請確認網路可連線後重新整理頁面；若在公司或受限網路內，換一般網路再開即可。');
-    return;
-  }
+async function runChart(stockNo, months){
   try{
-    initCharts();
+    const result=await fetchWithFallback(stockNo, months, msg=>{
+      setStatus('loading',`<span class="spin" aria-hidden="true"></span>${msg}`);
+    });
+    const {bars,name,source='證交所'}=result;
+    const listed=STOCK_LIST.find(s=>s.code===stockNo);
+    const showName=(listed&&listed.name)||name||stockNo;
+    document.getElementById('stockName').innerHTML=`${showName} <span>${stockNo}</span>`;
+    document.getElementById('tickerLabel').textContent=`TWSE/TPEX · ${stockNo}`;
+    document.title=`${showName}（${stockNo}）— TWSE Analytics`;
+    render(bars);
+    setStatus('ok',`✓ 已載入 ${showName}（${stockNo}）${bars.length} 個交易日。資料源：${source}。`);
+    const setF=(id,txt,ok=true)=>{ const el=document.getElementById(id); el.textContent=txt; el.style.color=ok?'':'var(--t2)'; el.style.fontSize=ok?'':'13px'; };
+    setF('stat-pe','載入中…',false); setF('stat-yield','載入中…',false); setF('stat-pb','載入中…',false);
+    loadFundamentals(stockNo).then(f=>{
+      if(!f){ setF('stat-pe','—',false); setF('stat-yield','—',false); setF('stat-pb','—',false); return; }
+      setF('stat-pe',f.pe); setF('stat-yield',f.yld!=='—'?f.yld+'%':f.yld); setF('stat-pb',f.pb);
+    }).catch(()=>{ setF('stat-pe','無法取得',false); setF('stat-yield','無法取得',false); setF('stat-pb','無法取得',false); });
   }catch(e){
-    setStatus('err','⚠ 圖表初始化失敗：'+e.message+'。請重新整理頁面再試。');
+    setStatus('err',`⚠ 抓取失敗：${e.message}。請按「查詢」重試或換網路環境。`);
+  }
+}
+
+/* ── Boot ── */
+(async function boot(){
+  setStatus('loading','<span class="spin" aria-hidden="true"></span>正在載入圖表元件…');
+  if(!await ensureChartLib()){
+    setStatus('err','⚠ 無法載入圖表元件（lightweight-charts）。請確認網路可連線後重新整理。');
     return;
   }
+  try{ initCharts(); }catch(e){ setStatus('err','⚠ 圖表初始化失敗：'+e.message); return; }
   wireControls();
-  // 背景載入完整股票清單（不阻塞主流程；備援清單先頂著）
-  loadStockList().then(()=>{
-    const n=STOCK_LIST.length;
-    if(n>FALLBACK_LIST.length){
-      const el=document.getElementById('listHint');
-      if(el) el.textContent=`可搜尋 ${n} 檔上市櫃股票`;
-    }
-  }).catch(()=>{});
-  // 初始顯示台積電
+  loadStockList().catch(()=>{});
   const init=STOCK_LIST.find(s=>s.code==='2330');
-  document.getElementById('stockInput').value = init?`2330 ${init.name}`:'2330';
-  run('2330', 6);
+  document.getElementById('stockInput').value=init?`2330 ${init.name}`:'2330';
+  runChart('2330',6);
 })();
 
-// 全域錯誤攔截：跨來源 script 錯誤只顯示「Script error.」且無法取得詳情，直接忽略
-window.addEventListener('error', ev=>{
-  if(!ev.message || ev.message==='Script error.' || ev.message==='Script error') return;
+window.addEventListener('error',ev=>{
+  if(!ev.message||ev.message==='Script error.'||ev.message==='Script error') return;
   const el=document.getElementById('status');
-  if(el && el.className.indexOf('ok')===-1){
-    setStatus('err','⚠ 發生錯誤：'+ev.message+'。<br>請重新整理頁面；若持續發生請換網路環境再試。');
-  }
+  if(el&&el.className.indexOf('ok')===-1) setStatus('err','⚠ 發生錯誤：'+ev.message+'。請重新整理頁面。');
 });
 </script>
 </body>

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>頁面不存在 — TWSE Analytics</title>
+<link rel="stylesheet" href="assets/style.css">
+<script>
+  // GitHub Pages SPA redirect: restore path from sessionStorage
+  (function(){
+    const r=sessionStorage.redirect;
+    delete sessionStorage.redirect;
+    if(r&&r!==location.href) history.replaceState(null,null,r);
+  })();
+</script>
+</head>
+<body>
+<nav class="nav" role="navigation">
+  <a href="index.html" class="nav-logo">
+    <span class="blink" aria-hidden="true"></span>
+    <span>TWSE Analytics</span>
+  </a>
+  <div class="nav-links">
+    <a href="index.html"    class="nav-link">個股走勢</a>
+    <a href="backtest.html" class="nav-link">策略回測</a>
+  </div>
+</nav>
+<main class="page">
+  <div class="err-page">
+    <div class="err-code" aria-hidden="true">404</div>
+    <h1 class="err-msg">找不到頁面</h1>
+    <p class="err-sub">您請求的頁面不存在，或已被移動。</p>
+    <a href="index.html" class="btn">返回首頁</a>
+  </div>
+</main>
+</body>
+</html>

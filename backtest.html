@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="台灣股票策略回測：雙均線、ATR突破、布林通道、KD指標，輸出總報酬、最大回撤、夏普值等績效指標。">
+<title>策略回測 — TWSE Analytics</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230d0f12'/%3E%3Crect x='4' y='9' width='5' height='14' rx='1' fill='%23ef5350'/%3E%3Cline x1='6.5' y1='5' x2='6.5' y2='27' stroke='%23ef5350' stroke-width='1.5'/%3E%3Crect x='13' y='6' width='5' height='11' rx='1' fill='%23ef5350'/%3E%3Cline x1='15.5' y1='2' x2='15.5' y2='22' stroke='%23ef5350' stroke-width='1.5'/%3E%3Crect x='22' y='13' width='5' height='9' rx='1' fill='%2326a69a'/%3E%3Cline x1='24.5' y1='9' x2='24.5' y2='27' stroke='%2326a69a' stroke-width='1.5'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/style.css">
+<style>
+  #equityChart { height:220px; width:100%; }
+  #btPriceChart { height:300px; width:100%; }
+  .empty-state {
+    display:flex; flex-direction:column; align-items:center;
+    justify-content:center; padding:48px 20px;
+    color:var(--t3); font-size:13px; text-align:center; gap:12px;
+  }
+  .empty-state svg { opacity:.25; }
+  .results-area { display:none; }
+  .results-area.visible { display:block; }
+  .scroll-tbl { overflow-x:auto; }
+</style>
+</head>
+<body>
+
+<nav class="nav" role="navigation" aria-label="主導覽">
+  <a href="index.html" class="nav-logo" aria-label="TWSE Analytics 首頁">
+    <span class="blink" aria-hidden="true"></span>
+    <span>TWSE Analytics</span>
+  </a>
+  <div class="nav-links">
+    <a href="index.html"    class="nav-link">個股走勢</a>
+    <a href="backtest.html" class="nav-link active" aria-current="page">策略回測</a>
+  </div>
+</nav>
+
+<main class="page" id="main">
+
+  <div class="page-header">
+    <div class="title-block">
+      <div class="ticker-label">回測引擎 · Browser-side</div>
+      <h1 class="page-h1">策略回測 <span>Backtest</span></h1>
+    </div>
+  </div>
+
+  <div id="status-bt" class="status" style="display:none" role="status" aria-live="polite"></div>
+
+  <!-- Two-column layout: params left, results right -->
+  <div class="bt-grid">
+
+    <!-- Left: parameters -->
+    <div class="bt-params">
+      <!-- Stock selector -->
+      <div class="params-card">
+        <div class="params-hd">股票 &amp; 期間</div>
+        <div class="param-fields">
+          <div class="field">
+            <label>股票代碼 / 名稱</label>
+            <div class="search-wrap">
+              <div class="search-row">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="color:var(--t3);flex:none" aria-hidden="true">
+                  <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <input id="btStockInput" placeholder="2330 台積電" autocomplete="off" aria-label="股票搜尋">
+                <span></span>
+              </div>
+              <div id="btSuggest" class="suggest" hidden role="listbox"></div>
+            </div>
+          </div>
+          <div class="field">
+            <label>回測期間</label>
+            <select id="btMonths" class="input input-sm">
+              <option value="6">近 6 個月</option>
+              <option value="12" selected>近 1 年</option>
+              <option value="24">近 2 年</option>
+              <option value="36">近 3 年</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Strategy selector -->
+      <div class="params-card">
+        <div class="params-hd">策略選擇</div>
+        <div class="radio-group" id="strategyGroup" role="radiogroup" aria-label="回測策略">
+          <label class="radio-opt selected">
+            <input type="radio" name="strategy" value="ma_cross" checked>
+            <span>雙均線交叉</span>
+            <small>MA Golden/Death Cross</small>
+          </label>
+          <label class="radio-opt">
+            <input type="radio" name="strategy" value="atr_break">
+            <span>ATR 通道突破</span>
+            <small>Channel Breakout</small>
+          </label>
+          <label class="radio-opt">
+            <input type="radio" name="strategy" value="boll">
+            <span>布林通道反彈</span>
+            <small>Bollinger Band Reversion</small>
+          </label>
+          <label class="radio-opt">
+            <input type="radio" name="strategy" value="kd_cross">
+            <span>KD 黃金交叉</span>
+            <small>Stochastic Cross</small>
+          </label>
+        </div>
+      </div>
+
+      <!-- Strategy params -->
+      <div class="params-card">
+        <div class="params-hd">策略參數</div>
+        <div class="param-fields">
+          <!-- MA Cross params -->
+          <div id="p-ma_cross" class="strategy-params visible">
+            <div class="field">
+              <label>快線週期</label>
+              <div class="field-row">
+                <input type="number" id="p-ma-fast" class="input input-sm" value="5" min="2" max="50">
+                <small class="dim">天</small>
+              </div>
+            </div>
+            <div class="field">
+              <label>慢線週期</label>
+              <div class="field-row">
+                <input type="number" id="p-ma-slow" class="input input-sm" value="20" min="5" max="200">
+                <small class="dim">天</small>
+              </div>
+            </div>
+          </div>
+          <!-- ATR params -->
+          <div id="p-atr_break" class="strategy-params">
+            <div class="field">
+              <label>ATR 週期</label>
+              <div class="field-row">
+                <input type="number" id="p-atr-period" class="input input-sm" value="14" min="5" max="50">
+                <small class="dim">天</small>
+              </div>
+            </div>
+            <div class="field">
+              <label>突破倍數</label>
+              <div class="field-row">
+                <input type="number" id="p-atr-mult" class="input input-sm" value="1.5" min="0.5" max="5" step="0.1">
+                <small class="dim">× ATR</small>
+              </div>
+            </div>
+          </div>
+          <!-- Boll params -->
+          <div id="p-boll" class="strategy-params">
+            <div class="field">
+              <label>布林週期</label>
+              <div class="field-row">
+                <input type="number" id="p-boll-period" class="input input-sm" value="20" min="10" max="50">
+                <small class="dim">天</small>
+              </div>
+            </div>
+            <div class="field">
+              <label>標準差倍數</label>
+              <div class="field-row">
+                <input type="number" id="p-boll-mult" class="input input-sm" value="2" min="1" max="3" step="0.1">
+                <small class="dim">σ</small>
+              </div>
+            </div>
+          </div>
+          <!-- KD params -->
+          <div id="p-kd_cross" class="strategy-params">
+            <div class="field">
+              <label>KD 週期</label>
+              <div class="field-row">
+                <input type="number" id="p-kd-period" class="input input-sm" value="9" min="5" max="20">
+                <small class="dim">天</small>
+              </div>
+            </div>
+          </div>
+          <!-- Common params -->
+          <div class="field">
+            <label>手續費（單邊）</label>
+            <div class="field-row">
+              <input type="number" id="p-commission" class="input input-sm" value="0.1425" min="0" max="1" step="0.01">
+              <small class="dim">%</small>
+            </div>
+          </div>
+          <div class="field">
+            <label>滑價（單邊）</label>
+            <div class="field-row">
+              <input type="number" id="p-slippage" class="input input-sm" value="0.05" min="0" max="1" step="0.01">
+              <small class="dim">%</small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn" id="runBt" style="width:100%;justify-content:center">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <polygon points="5 3 19 12 5 21 5 3"/>
+        </svg>
+        開始回測
+      </button>
+
+      <!-- Disclaimer -->
+      <div class="note" style="margin-top:12px">
+        <div class="disc" style="font-size:11.5px">
+          回測結果僅供參考，不構成投資建議。<br>
+          過去績效不代表未來表現。已計入手續費與滑價，但未含稅金及借券成本。
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: results -->
+    <div id="resultsPanel">
+      <!-- Loading / empty state -->
+      <div id="emptyState" class="empty-state">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        </svg>
+        <p>選擇股票與策略參數，<br>按「開始回測」執行。</p>
+        <p style="color:var(--t3);font-size:11px">計算在背景 Worker 執行，不影響瀏覽器操作。</p>
+      </div>
+
+      <!-- Results (hidden until run) -->
+      <div class="results-area" id="resultsArea">
+        <!-- Metrics -->
+        <div class="card">
+          <div class="card-hd"><h2>績效指標</h2><span id="btPeriodLabel" class="readout" style="font-size:11px"></span></div>
+          <div class="card-body">
+            <div class="metrics-row" id="metricsRow"></div>
+          </div>
+        </div>
+
+        <!-- Equity curve -->
+        <div class="card" style="margin-top:10px">
+          <div class="card-hd"><h2>權益曲線 (Equity Curve)</h2></div>
+          <div id="equityChart" role="img" aria-label="權益曲線圖"></div>
+        </div>
+
+        <!-- K-line with markers -->
+        <div class="card" style="margin-top:10px">
+          <div class="card-hd">
+            <h2>K 線圖（進出場標記）</h2>
+            <span class="readout" style="font-size:11px">
+              <span style="color:var(--up)">▲ 買入</span>
+              <span style="color:var(--dn)">▼ 賣出</span>
+            </span>
+          </div>
+          <div id="btPriceChart" role="img" aria-label="K線圖含進出場標記"></div>
+        </div>
+
+        <!-- Trade log -->
+        <div class="card" style="margin-top:10px">
+          <div class="card-hd">
+            <h2>交易明細</h2>
+            <span id="tradeCountLabel" class="readout" style="font-size:11px"></span>
+          </div>
+          <div class="scroll-tbl">
+            <table class="trade-log" id="tradeLog">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>進場日</th>
+                  <th>進場價</th>
+                  <th>出場日</th>
+                  <th>出場價</th>
+                  <th>報酬</th>
+                  <th>持有天</th>
+                </tr>
+              </thead>
+              <tbody id="tradeLogBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="assets/shared.js"></script>
+<script>
+/* ── Chart library CDNs ── */
+const CHART_CDNS=[
+  'https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js',
+  'https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/lightweight-charts/4.1.3/lightweight-charts.standalone.production.js'
+];
+function loadScript(src){
+  return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=()=>rej(); document.head.appendChild(s); });
+}
+async function ensureChartLib(){
+  if(window.LightweightCharts) return true;
+  for(const u of CHART_CDNS){ try{ await loadScript(u); if(window.LightweightCharts) return true; }catch{} }
+  return false;
+}
+
+/* ── State ── */
+let BT_STOCK='2330', BT_MONTHS=12;
+let equityChart=null, btPriceChart=null, equitySeries=null, btCandleSeries=null;
+let btWorker=null;
+
+/* ── Status helper ── */
+function setStatus(type, html){
+  const el=document.getElementById('status-bt');
+  el.style.display=''; el.className='status '+type; el.innerHTML=html;
+}
+function hideStatus(){ document.getElementById('status-bt').style.display='none'; }
+
+/* ── Strategy UI ── */
+document.querySelectorAll('input[name=strategy]').forEach(r=>{
+  r.addEventListener('change',()=>{
+    document.querySelectorAll('.radio-opt').forEach(o=>o.classList.remove('selected'));
+    r.closest('.radio-opt').classList.add('selected');
+    document.querySelectorAll('.strategy-params').forEach(p=>p.classList.remove('visible'));
+    const pDiv=document.getElementById('p-'+r.value);
+    if(pDiv) pDiv.classList.add('visible');
+  });
+});
+
+/* ── Stock search ── */
+wireSearchBox({
+  inputId:'btStockInput', suggestId:'btSuggest', btnId:null,
+  onSelect(s){ BT_STOCK=s.code; document.getElementById('btStockInput').value=`${s.code} ${s.name}`; }
+});
+
+/* ── Init charts ── */
+async function initCharts(){
+  await ensureChartLib();
+  const common={
+    layout:{ background:{type:'solid',color:'transparent'}, textColor:'#7d9ab5', fontFamily:'JetBrains Mono, ui-monospace, monospace' },
+    grid:{ vertLines:{color:'#1c2332'}, horzLines:{color:'#1c2332'} },
+    rightPriceScale:{ borderColor:'#1e2736', minimumWidth:72 },
+    leftPriceScale:{ visible:false },
+    timeScale:{ borderColor:'#1e2736', timeVisible:false, rightOffset:2, fixLeftEdge:true, fixRightEdge:true },
+    crosshair:{ mode:0, vertLine:{color:'#2a3650',width:1,style:2,labelBackgroundColor:'#1e2a3a'}, horzLine:{color:'#2a3650',width:1,style:2,labelBackgroundColor:'#1e2a3a'} }
+  };
+  equityChart=LightweightCharts.createChart(document.getElementById('equityChart'), common);
+  equitySeries=equityChart.addAreaSeries({
+    lineColor:'#f59e0b', topColor:'rgba(245,158,11,.25)', bottomColor:'rgba(245,158,11,.02)',
+    lineWidth:2, priceFormat:{type:'price',precision:3,minMove:0.001},
+    priceLineVisible:false, lastValueVisible:false,
+  });
+  btPriceChart=LightweightCharts.createChart(document.getElementById('btPriceChart'), common);
+  btCandleSeries=btPriceChart.addCandlestickSeries({
+    upColor:'#ef5350', downColor:'#26a69a',
+    borderUpColor:'#ef5350', borderDownColor:'#26a69a',
+    wickUpColor:'#ef5350', wickDownColor:'#26a69a',
+  });
+  window.addEventListener('resize',()=>{
+    equityChart.applyOptions({width:document.getElementById('equityChart').clientWidth});
+    btPriceChart.applyOptions({width:document.getElementById('btPriceChart').clientWidth});
+  });
+}
+
+/* ── Run backtest ── */
+async function runBacktest(){
+  const stockRaw=document.getElementById('btStockInput').value.trim();
+  const stockCode=stockRaw.split(/\s+/)[0]||BT_STOCK;
+  if(!/^\d{4,6}$/.test(stockCode)){
+    setStatus('err','⚠ 請輸入有效的股票代碼（4~6 位數字）。'); return;
+  }
+  BT_STOCK=stockCode;
+  BT_MONTHS=+document.getElementById('btMonths').value;
+  const strategy=document.querySelector('input[name=strategy]:checked')?.value||'ma_cross';
+  const commission=parseFloat(document.getElementById('p-commission').value)/100||0.001425;
+  const slippage=parseFloat(document.getElementById('p-slippage').value)/100||0.0005;
+  const params={ commission, slippage };
+  if(strategy==='ma_cross'){
+    params.fastPeriod=+document.getElementById('p-ma-fast').value||5;
+    params.slowPeriod=+document.getElementById('p-ma-slow').value||20;
+    if(params.fastPeriod>=params.slowPeriod){ setStatus('err','⚠ 快線週期必須小於慢線週期。'); return; }
+  } else if(strategy==='atr_break'){
+    params.atrPeriod=+document.getElementById('p-atr-period').value||14;
+    params.atrMult=parseFloat(document.getElementById('p-atr-mult').value)||1.5;
+  } else if(strategy==='boll'){
+    params.bollPeriod=+document.getElementById('p-boll-period').value||20;
+    params.bollMult=parseFloat(document.getElementById('p-boll-mult').value)||2;
+  } else if(strategy==='kd_cross'){
+    params.kdPeriod=+document.getElementById('p-kd-period').value||9;
+  }
+  const btn=document.getElementById('runBt');
+  btn.disabled=true;
+  setStatus('loading','<span class="spin" aria-hidden="true"></span>正在抓取歷史資料…');
+
+  let bars;
+  try{
+    const r=await fetchWithFallback(BT_STOCK, BT_MONTHS, msg=>setStatus('loading',`<span class="spin" aria-hidden="true"></span>${msg}`));
+    bars=r.bars;
+    const listed=STOCK_LIST.find(s=>s.code===BT_STOCK);
+    const name=(listed&&listed.name)||r.name||BT_STOCK;
+    document.getElementById('btPeriodLabel').textContent=`${name}（${BT_STOCK}）${bars.length} 個交易日`;
+    document.title=`${name}（${BT_STOCK}）回測 — TWSE Analytics`;
+  }catch(e){
+    setStatus('err','⚠ 資料抓取失敗：'+e.message);
+    btn.disabled=false; return;
+  }
+
+  setStatus('loading','<span class="spin" aria-hidden="true"></span>正在執行回測計算（背景 Worker）…');
+
+  /* Terminate previous worker */
+  if(btWorker) btWorker.terminate();
+  btWorker=new Worker('assets/backtest.worker.js');
+  btWorker.onmessage=function(e){
+    btn.disabled=false;
+    if(!e.data.ok){ setStatus('err','⚠ 回測錯誤：'+e.data.error); return; }
+    hideStatus();
+    renderResults(bars, e.data, strategy, params);
+  };
+  btWorker.onerror=function(e){
+    btn.disabled=false;
+    setStatus('err','⚠ Worker 錯誤：'+e.message);
+  };
+  btWorker.postMessage({bars, strategy, params});
+}
+
+/* ── Render results ── */
+function renderResults(bars, result, strategy, params){
+  const {trades, equity, markers, metrics}=result;
+  document.getElementById('emptyState').style.display='none';
+  const ra=document.getElementById('resultsArea');
+  ra.classList.add('visible');
+
+  /* Metrics */
+  const m=metrics;
+  const fPct=v=>(v*100).toFixed(2)+'%';
+  const totalRetClass=m.totalReturn>=0?'pos':'neg';
+  const mddClass='neg', sharpeClass=m.sharpe!=null?(m.sharpe>=1?'pos':m.sharpe>0?'neu':'neg'):'neu';
+  document.getElementById('metricsRow').innerHTML=[
+    {k:'總報酬',       v:fPct(m.totalReturn),            cls:totalRetClass},
+    {k:'年化報酬',     v:fPct(m.annReturn),              cls:m.annReturn>=0?'pos':'neg'},
+    {k:'最大回撤 MDD', v:'-'+fPct(m.mdd),               cls:'neg'},
+    {k:'夏普值',       v:m.sharpe!=null?m.sharpe:'—',   cls:sharpeClass},
+    {k:'勝率',         v:fPct(m.winRate),                cls:m.winRate>=0.5?'pos':'neu'},
+    {k:'交易次數',     v:m.tradeCount,                   cls:'neu'},
+    {k:'平均持有',     v:m.avgHold+'天',                 cls:'neu'},
+    {k:'盈虧比',       v:m.profitFactor!=null?m.profitFactor:'—', cls:m.profitFactor!=null&&m.profitFactor>=1?'pos':'neu'},
+  ].map(x=>`<div class="metric-item ${x.cls}"><div class="metric-k">${x.k}</div><div class="metric-v num">${x.v}</div></div>`).join('');
+
+  /* Equity curve */
+  equitySeries.setData(equity.map(pt=>({time:pt.time, value:pt.value})));
+  equityChart.timeScale().fitContent();
+
+  /* K-line with markers */
+  btCandleSeries.setData(bars.map(b=>({time:b.time,open:b.open,high:b.high,low:b.low,close:b.close})));
+  if(markers.length) btCandleSeries.setMarkers(markers);
+  btPriceChart.timeScale().fitContent();
+
+  /* Trade log */
+  document.getElementById('tradeCountLabel').textContent=`共 ${trades.length} 筆交易`;
+  const tbody=document.getElementById('tradeLogBody');
+  if(!trades.length){
+    tbody.innerHTML=`<tr><td colspan="7" style="text-align:center;color:var(--t2);padding:20px">本期間內無交易訊號</td></tr>`;
+  } else {
+    tbody.innerHTML=trades.map((t,i)=>{
+      const retPct=(t.ret*100).toFixed(2);
+      const cls=t.ret>=0?'win':'loss';
+      return `<tr class="${cls}">
+        <td>${i+1}</td>
+        <td>${t.entryDate}</td><td>${t.entryPrice.toFixed(2)}</td>
+        <td>${t.exitDate}</td><td>${t.exitPrice.toFixed(2)}</td>
+        <td class="${t.ret>=0?'up':'dn'}">${t.ret>=0?'+':''}${retPct}%</td>
+        <td>${t.holdDays}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  /* Scroll to results */
+  document.getElementById('resultsPanel').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+/* ── Boot ── */
+(async function boot(){
+  loadStockList().catch(()=>{});
+  await initCharts();
+  const init=STOCK_LIST.find(s=>s.code==='2330');
+  document.getElementById('btStockInput').value=init?`2330 ${init.name}`:'2330';
+  document.getElementById('runBt').addEventListener('click', runBacktest);
+  document.getElementById('btMonths').addEventListener('change',e=>BT_MONTHS=+e.target.value);
+})();
+</script>
+</body>
+</html>
