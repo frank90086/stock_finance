@@ -23,16 +23,7 @@
 </head>
 <body>
 
-<nav class="nav" role="navigation" aria-label="主導覽">
-  <a href="index.html" class="nav-logo" aria-label="TWSE Analytics 首頁">
-    <span class="blink" aria-hidden="true"></span>
-    <span>TWSE Analytics</span>
-  </a>
-  <div class="nav-links">
-    <a href="index.html"    class="nav-link">個股走勢</a>
-    <a href="backtest.html" class="nav-link active" aria-current="page">策略回測</a>
-  </div>
-</nav>
+<nav class="nav" id="app-nav" role="navigation" aria-label="主導覽"></nav>
 
 <main class="page" id="main">
 
@@ -248,7 +239,15 @@
         <div class="card" style="margin-top:10px">
           <div class="card-hd">
             <h2>交易明細</h2>
-            <span id="tradeCountLabel" class="readout" style="font-size:11px"></span>
+            <span style="display:flex;align-items:center;gap:8px">
+              <span id="tradeCountLabel" class="readout" style="font-size:11px"></span>
+              <button class="btn btn-outline btn-sm" id="exportBtn" style="display:none" aria-label="匯出 CSV">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                CSV
+              </button>
+            </span>
           </div>
           <div class="scroll-tbl">
             <table class="trade-log" id="tradeLog">
@@ -459,12 +458,50 @@ function renderResults(bars, result, strategy, params){
     }).join('');
   }
 
+  /* CSV export */
+  const exportBtn=document.getElementById('exportBtn');
+  exportBtn.style.display='';
+  exportBtn.onclick=()=>{
+    const stockLabel=document.getElementById('btPeriodLabel').textContent;
+    const strategyName=document.querySelector('input[name=strategy]:checked')?.value||'strategy';
+    // Metrics header
+    const mLines=[
+      '# TWSE Analytics 回測報告',
+      `# ${stockLabel}`,
+      `# 策略：${strategyName}`,
+      '',
+      '## 績效指標',
+      '指標,數值',
+      `總報酬,(${(metrics.totalReturn*100).toFixed(2)}%)`,
+      `年化報酬,(${(metrics.annReturn*100).toFixed(2)}%)`,
+      `最大回撤 MDD,(-${(metrics.mdd*100).toFixed(2)}%)`,
+      `夏普值,${metrics.sharpe??'—'}`,
+      `勝率,${(metrics.winRate*100).toFixed(2)}%`,
+      `交易次數,${metrics.tradeCount}`,
+      `平均持有,${metrics.avgHold}天`,
+      `盈虧比,${metrics.profitFactor??'—'}`,
+      '',
+      '## 交易明細',
+      '#,進場日,進場價,出場日,出場價,報酬,持有天數',
+    ];
+    const tLines=trades.map((t,i)=>
+      `${i+1},${t.entryDate},${t.entryPrice.toFixed(2)},${t.exitDate},${t.exitPrice.toFixed(2)},${(t.ret*100).toFixed(2)}%,${t.holdDays}`
+    );
+    const csv=[...mLines,...tLines].join('\n');
+    const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=`backtest_${BT_STOCK}_${strategyName}_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click(); URL.revokeObjectURL(a.href);
+  };
+
   /* Scroll to results */
   document.getElementById('resultsPanel').scrollIntoView({behavior:'smooth', block:'start'});
 }
 
 /* ── Boot ── */
 (async function boot(){
+  injectNav('backtest');
   loadStockList().catch(()=>{});
   await initCharts();
   const init=STOCK_LIST.find(s=>s.code==='2330');

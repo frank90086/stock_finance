@@ -423,6 +423,22 @@ async function loadFundamentals(stockNo){
   return null;
 }
 
+/* ── Shared nav injection ── */
+function injectNav(activePage){
+  // activePage: 'chart' | 'backtest'
+  const el=document.getElementById('app-nav');
+  if(!el) return;
+  el.innerHTML=`
+    <a href="index.html" class="nav-logo" aria-label="TWSE Analytics 首頁">
+      <span class="blink" aria-hidden="true"></span>
+      <span>TWSE Analytics</span>
+    </a>
+    <div class="nav-links">
+      <a href="index.html"    class="nav-link${activePage==='chart'?    ' active':''}"${activePage==='chart'?    ' aria-current="page"':''}>個股走勢</a>
+      <a href="backtest.html" class="nav-link${activePage==='backtest'?' active':''}"${activePage==='backtest'?' aria-current="page"':''}>策略回測</a>
+    </div>`;
+}
+
 /* ── Shared search UI wiring ── */
 function wireSearchBox(opts){
   // opts: { inputId, suggestId, btnId, onSelect }

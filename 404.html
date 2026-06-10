@@ -15,16 +15,9 @@
 </script>
 </head>
 <body>
-<nav class="nav" role="navigation">
-  <a href="index.html" class="nav-logo">
-    <span class="blink" aria-hidden="true"></span>
-    <span>TWSE Analytics</span>
-  </a>
-  <div class="nav-links">
-    <a href="index.html"    class="nav-link">個股走勢</a>
-    <a href="backtest.html" class="nav-link">策略回測</a>
-  </div>
-</nav>
+<nav class="nav" id="app-nav" role="navigation" aria-label="主導覽"></nav>
+<script src="assets/shared.js"></script>
+<script>injectNav('');</script>
 <main class="page">
   <div class="err-page">
     <div class="err-code" aria-hidden="true">404</div>

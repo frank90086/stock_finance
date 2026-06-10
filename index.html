@@ -27,17 +27,8 @@
 </head>
 <body>
 
-<!-- Navigation -->
-<nav class="nav" role="navigation" aria-label="主導覽">
-  <a href="index.html" class="nav-logo" aria-label="TWSE Analytics 首頁">
-    <span class="blink" aria-hidden="true"></span>
-    <span>TWSE Analytics</span>
-  </a>
-  <div class="nav-links">
-    <a href="index.html"     class="nav-link active" aria-current="page">個股走勢</a>
-    <a href="backtest.html"  class="nav-link">策略回測</a>
-  </div>
-</nav>
+<!-- Navigation (populated by shared.js injectNav) -->
+<nav class="nav" id="app-nav" role="navigation" aria-label="主導覽"></nav>
 
 <main class="page" id="main">
 
@@ -502,6 +493,7 @@ async function runChart(stockNo, months){
 
 /* ── Boot ── */
 (async function boot(){
+  injectNav('chart');
   setStatus('loading','<span class="spin" aria-hidden="true"></span>正在載入圖表元件…');
   if(!await ensureChartLib()){
     setStatus('err','⚠ 無法載入圖表元件（lightweight-charts）。請確認網路可連線後重新整理。');

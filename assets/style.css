@@ -208,6 +208,11 @@ a:hover { text-decoration: underline; }
 .btn:hover { filter: brightness(1.1); }
 .btn:disabled { opacity: .4; cursor: not-allowed; filter: none; }
 .btn-sm { padding: 5px 11px; font-size: 12px; }
+.btn-outline {
+  background: transparent; color: var(--amber);
+  border: 1px solid var(--amber);
+}
+.btn-outline:hover { background: var(--amber-d); filter: none; }
 
 /* ── Form inputs ── */
 .input {
@@ -464,6 +469,20 @@ a:hover { text-decoration: underline; }
   border-radius: 50%; animation: spin .8s linear infinite;
   margin: 40px auto;
 }
+
+/* ── Focus styles (WCAG AA keyboard navigation) ── */
+:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+button:focus-visible, a:focus-visible,
+input:focus-visible, select:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+  border-radius: var(--r);
+}
+.nav-link:focus-visible { background: var(--s2); }
+.tg:focus-visible, .seg button:focus-visible { border-color: var(--amber); }
 
 /* ── Responsive ── */
 @media (max-width: 760px) {
