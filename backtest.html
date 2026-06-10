@@ -322,8 +322,9 @@ wireSearchBox({
   onSelect(s){ BT_STOCK=s.code; document.getElementById('btStockInput').value=`${s.code} ${s.name}`; }
 });
 
-/* ── Init charts ── */
+/* ── Init charts (lazy — called after results container is visible) ── */
 async function initCharts(){
+  if(equityChart) return;   // already initialized
   await ensureChartLib();
   const common={
     layout:{ background:{type:'solid',color:'transparent'}, textColor:'#7d9ab5', fontFamily:'JetBrains Mono, ui-monospace, monospace' },
@@ -399,11 +400,11 @@ async function runBacktest(){
   /* Terminate previous worker */
   if(btWorker) btWorker.terminate();
   btWorker=new Worker('assets/backtest.worker.js');
-  btWorker.onmessage=function(e){
+  btWorker.onmessage=async function(e){
     btn.disabled=false;
     if(!e.data.ok){ setStatus('err','⚠ 回測錯誤：'+e.data.error); return; }
     hideStatus();
-    renderResults(bars, e.data, strategy, params);
+    await renderResults(bars, e.data, strategy, params);
     pushBtHash();  /* update URL so result is shareable/reproducible */
   };
   btWorker.onerror=function(e){
@@ -414,11 +415,12 @@ async function runBacktest(){
 }
 
 /* ── Render results ── */
-function renderResults(bars, result, strategy, params){
+async function renderResults(bars, result, strategy, params){
   const {trades, equity, markers, metrics}=result;
   document.getElementById('emptyState').style.display='none';
   const ra=document.getElementById('resultsArea');
   ra.classList.add('visible');
+  await initCharts(); // lazy init — container is now visible, dimensions are valid
 
   /* Metrics */
   const m=metrics;
@@ -449,7 +451,7 @@ function renderResults(bars, result, strategy, params){
   document.getElementById('tradeCountLabel').textContent=`共 ${trades.length} 筆交易`;
   const tbody=document.getElementById('tradeLogBody');
   if(!trades.length){
-    tbody.innerHTML=`<tr><td colspan="7" style="text-align:center;color:var(--t2);padding:20px">本期間內無交易訊號</td></tr>`;
+    tbody.innerHTML=`<tr><td colspan="7" class="tbl-empty-cell">本期間內無交易訊號</td></tr>`;
   } else {
     tbody.innerHTML=trades.map((t,i)=>{
       const retPct=(t.ret*100).toFixed(2);
@@ -581,7 +583,7 @@ function applyBtHash(h){
 (async function boot(){
   injectNav('backtest');
   loadStockList().catch(()=>{});
-  await initCharts();
+  ensureChartLib(); // preload chart library in background; charts created lazily on first run
 
   /* Read hash state and apply to form before we populate the input */
   const initHash=parseBtHash();

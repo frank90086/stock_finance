@@ -125,7 +125,7 @@ function kdCrossSignals(bars, period){
 /* ── Trade Simulation ── */
 function simulateTrades(bars, signals, commission, slippage){
   const trades=[];
-  const equity=[{time:bars[0].time, value:1.0}]; // normalised equity curve
+  const equity=[]; // normalised equity curve; loop pushes bars[0].time on first iteration
   let cash=1.0, inPos=false, entryPrice=0, entryDate='', entryIdx=0;
   const signalMap=new Map();
   signals.forEach(s=>signalMap.set(s.idx, s.type));

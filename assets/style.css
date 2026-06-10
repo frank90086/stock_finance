@@ -396,6 +396,17 @@ a:hover { text-decoration: underline; }
   font-size: 13px; font-weight: 700; margin-bottom: 11px; color: var(--t1);
 }
 .sc-head .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.dot-atr14 { background: var(--atr14); }
+.dot-bb    { background: var(--bbBand); }
+.dot-ma60  { background: var(--ma60); }
+.strat-playbook { margin-top: 12px; }
+.strat-empty { color: var(--t2); font-size: 13px; padding: 20px; text-align: center; }
+.tbl-empty-cell { text-align: center; color: var(--t2); padding: 20px; }
+/* Readout colour tokens — used by JS-generated crosshair/legend spans */
+.c-up    { color: var(--up); }    .c-dn     { color: var(--dn); }
+.c-atr7  { color: var(--atr7); } .c-atr14  { color: var(--atr14); }
+.c-kline { color: var(--kLine); } .c-dline  { color: var(--dLine); }
+.c-macd  { color: var(--macdLine); } .c-sig { color: var(--sigLine); }
 .sc-note { margin-top: 10px; font-size: 12px; line-height: 1.6; color: var(--t2); }
 .sc-note.dim { color: var(--t3); border-top: 1px solid var(--b1); padding-top: 10px; }
 .sc-note b { color: var(--t1); }

@@ -268,8 +268,8 @@ function initCharts(){
   /* Crosshair sync */
   const ohlcEl=document.getElementById('ohlcReadout');
   const atrEl =document.getElementById('atrReadout');
-  function showOHLC(d){ if(!d){ohlcEl.textContent='';return;} const c=d.close>=d.open?COLORS.up:COLORS.dn; ohlcEl.innerHTML=`<span style="color:${c}">開 ${d.open}　高 ${d.high}　低 ${d.low}　收 ${d.close}</span>`; }
-  function showATR(v7,v14){ if(v7==null&&v14==null){atrEl.innerHTML=lastATRHtml;return;} atrEl.innerHTML=`<span style="color:${COLORS.atr7}">ATR(7) ${v7!=null?v7.toFixed(2):'—'}</span>　<span style="color:${COLORS.atr14}">ATR(14) ${v14!=null?v14.toFixed(2):'—'}</span>`; }
+  function showOHLC(d){ if(!d){ohlcEl.textContent='';return;} const c=d.close>=d.open?'c-up':'c-dn'; ohlcEl.innerHTML=`<span class="${c}">開 ${d.open}　高 ${d.high}　低 ${d.low}　收 ${d.close}</span>`; }
+  function showATR(v7,v14){ if(v7==null&&v14==null){atrEl.innerHTML=lastATRHtml;return;} atrEl.innerHTML=`<span class="c-atr7">ATR(7) ${v7!=null?v7.toFixed(2):'—'}</span>　<span class="c-atr14">ATR(14) ${v14!=null?v14.toFixed(2):'—'}</span>`; }
 
   let syncingCH=false;
   function updateAllReadouts(time){
@@ -278,9 +278,9 @@ function initCharts(){
       showOHLC(ohlcMap.get(t)||null);
       showATR(atrMap7.get(t)??null, atrMap14.get(t)??null);
       const k=kdMap.get(t),dv=dMap.get(t);
-      document.getElementById('kdReadout').innerHTML=`<span style="color:${COLORS.kLine}">K ${k!=null?k.toFixed(2):'—'}</span>　<span style="color:${COLORS.dLine}">D ${dv!=null?dv.toFixed(2):'—'}</span>`;
+      document.getElementById('kdReadout').innerHTML=`<span class="c-kline">K ${k!=null?k.toFixed(2):'—'}</span>　<span class="c-dline">D ${dv!=null?dv.toFixed(2):'—'}</span>`;
       const m=macdMap.get(t),s=signalMap.get(t);
-      document.getElementById('macdReadout').innerHTML=`<span style="color:${COLORS.macdLine}">DIF ${m!=null?m.toFixed(3):'—'}</span>　<span style="color:${COLORS.sigLine}">DEA ${s!=null?s.toFixed(3):'—'}</span>`;
+      document.getElementById('macdReadout').innerHTML=`<span class="c-macd">DIF ${m!=null?m.toFixed(3):'—'}</span>　<span class="c-sig">DEA ${s!=null?s.toFixed(3):'—'}</span>`;
     }else{
       showOHLC(null); showATR(null,null);
       document.getElementById('kdReadout').innerHTML=lastKDHtml;
@@ -351,7 +351,7 @@ function render(bars){
   kdData.k.forEach(x=>kdMap.set(String(x.time),x.value));
   kdData.d.forEach(x=>dMap.set(String(x.time),x.value));
   const lastK=kdData.k[kdData.k.length-1]?.value, lastD=kdData.d[kdData.d.length-1]?.value;
-  lastKDHtml=`<span style="color:${COLORS.kLine}">K ${lastK?.toFixed(2)??'—'}</span>　<span style="color:${COLORS.dLine}">D ${lastD?.toFixed(2)??'—'}</span>`;
+  lastKDHtml=`<span class="c-kline">K ${lastK?.toFixed(2)??'—'}</span>　<span class="c-dline">D ${lastD?.toFixed(2)??'—'}</span>`;
   document.getElementById('kdReadout').innerHTML=lastKDHtml;
   const macdResult=computeMACD(bars,12,26,9);
   macdHistSeries.setData(macdResult.hist);
@@ -361,7 +361,7 @@ function render(bars){
   macdResult.macd.forEach(x=>macdMap.set(String(x.time),x.value));
   macdResult.signal.forEach(x=>signalMap.set(String(x.time),x.value));
   const lastM=macdResult.macd[macdResult.macd.length-1]?.value, lastS=macdResult.signal[macdResult.signal.length-1]?.value;
-  lastMACDHtml=`<span style="color:${COLORS.macdLine}">DIF ${lastM?.toFixed(3)??'—'}</span>　<span style="color:${COLORS.sigLine}">DEA ${lastS!=null?lastS.toFixed(3):'—'}</span>`;
+  lastMACDHtml=`<span class="c-macd">DIF ${lastM?.toFixed(3)??'—'}</span>　<span class="c-sig">DEA ${lastS!=null?lastS.toFixed(3):'—'}</span>`;
   document.getElementById('macdReadout').innerHTML=lastMACDHtml;
   loading=false;
   /* Hide chart skeletons now that data is rendered */
@@ -384,7 +384,7 @@ function render(bars){
   const lastA7=a7[a7.length-1]?.value, lastA14=a14[a14.length-1]?.value;
   document.getElementById('lgAtr7').textContent=lastA7?.toFixed(2)??'—';
   document.getElementById('lgAtr14').textContent=lastA14?.toFixed(2)??'—';
-  lastATRHtml=`<span style="color:${COLORS.atr7}">ATR(7) ${lastA7?.toFixed(2)??'—'}</span>　<span style="color:${COLORS.atr14}">ATR(14) ${lastA14?.toFixed(2)??'—'}</span>`;
+  lastATRHtml=`<span class="c-atr7">ATR(7) ${lastA7?.toFixed(2)??'—'}</span>　<span class="c-atr14">ATR(14) ${lastA14?.toFixed(2)??'—'}</span>`;
   document.getElementById('atrReadout').innerHTML=lastATRHtml;
   const hi=Math.max(...bars.map(b=>b.high)), lo=Math.min(...bars.map(b=>b.low));
   const atrPct=lastA14?(lastA14/last.close*100):null;
@@ -410,7 +410,7 @@ function applyOverlays(){
 
 function buildStrategy(bars, atr14, atr7){
   const el=document.getElementById('strategy'); if(!el) return;
-  if(!atr14){ el.innerHTML='<div style="color:var(--t2);font-size:13px;padding:20px;text-align:center">資料不足，無法計算策略點位。</div>'; return; }
+  if(!atr14){ el.innerHTML='<div class="strat-empty">資料不足，無法計算策略點位。</div>'; return; }
   const price=bars[bars.length-1].close, atr=atr14, f=n=>n.toFixed(1);
   const boll=computeBoll(bars,20,2);
   const bUp=boll.up[boll.up.length-1]?.value, bMid=boll.mid[boll.mid.length-1]?.value, bLow=boll.low[boll.low.length-1]?.value;
@@ -420,7 +420,7 @@ function buildStrategy(bars, atr14, atr7){
   el.innerHTML=`
   <div class="strat-grid">
     <div class="strat-card">
-      <div class="sc-head"><span class="dot" style="background:var(--atr14)"></span>ATR 停損／停利（假設進場價 ${f(price)}）</div>
+      <div class="sc-head"><span class="dot dot-atr14"></span>ATR 停損／停利（假設進場價 ${f(price)}）</div>
       <table class="tbl">
         <tr><th>策略</th><th>計算</th><th>點位</th></tr>
         <tr><td>積極停損</td><td>進場 − 1.5×ATR</td><td class="dn">${f(slT)}</td></tr>
@@ -432,7 +432,7 @@ function buildStrategy(bars, atr14, atr7){
       <div class="sc-note">ATR(14) = ${f(atr)}，約佔股價 <b>${(atr/price*100).toFixed(2)}%</b>。</div>
     </div>
     <div class="strat-card">
-      <div class="sc-head"><span class="dot" style="background:var(--bbBand)"></span>布林通道現值（20, 2σ）</div>
+      <div class="sc-head"><span class="dot dot-bb"></span>布林通道現值（20, 2σ）</div>
       <table class="tbl">
         <tr><th>軌道</th><th>點位</th><th>距現價</th></tr>
         <tr><td>上軌 +2σ</td><td class="up">${bUp?f(bUp):'—'}</td><td>${bUp?((bUp-price)/price*100).toFixed(1)+'%':'—'}</td></tr>
@@ -442,8 +442,8 @@ function buildStrategy(bars, atr14, atr7){
       <div class="sc-note">帶寬 ${bw?bw.toFixed(1)+'%':'—'}。${bwC}</div>
     </div>
   </div>
-  <div class="strat-card" style="margin-top:0">
-    <div class="sc-head"><span class="dot" style="background:var(--ma60)"></span>ATR × 布林通道 實戰參考</div>
+  <div class="strat-card strat-playbook">
+    <div class="sc-head"><span class="dot dot-ma60"></span>ATR × 布林通道 實戰參考</div>
     <div class="play-list">
       <div class="play"><div class="pl-title up">突破上軌 — 順勢做多</div>
         <p>站上上軌 <b>${bUp?f(bUp):'—'}</b> 且 ATR 放大：停損設中軌 <b class="dn">${bMid?f(bMid):f(slS)}</b> 或進場−2×ATR=<b class="dn">${f(slS)}</b>。</p></div>
