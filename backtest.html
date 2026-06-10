@@ -399,6 +399,7 @@ async function runBacktest(){
     if(!e.data.ok){ setStatus('err','⚠ 回測錯誤：'+e.data.error); return; }
     hideStatus();
     renderResults(bars, e.data, strategy, params);
+    pushBtHash();  /* update URL so result is shareable/reproducible */
   };
   btWorker.onerror=function(e){
     btn.disabled=false;
@@ -499,15 +500,98 @@ function renderResults(bars, result, strategy, params){
   document.getElementById('resultsPanel').scrollIntoView({behavior:'smooth', block:'start'});
 }
 
+/* ── URL hash helpers (format: #STOCK/STRATEGY/MONTHS/P1/P2) ──
+   e.g. #2330/ma_cross/12/5/20   #0050/boll/12/20/2
+   P1/P2 meaning:
+     ma_cross  → fastPeriod / slowPeriod
+     atr_break → atrPeriod  / atrMult
+     boll      → bollPeriod / bollMult
+     kd_cross  → kdPeriod   / (unused)
+*/
+function parseBtHash(){
+  const parts=location.hash.replace('#','').split('/');
+  if(!parts[0]) return null;
+  const [code,strat,mo,p1,p2]=parts;
+  return {
+    code:  /^\d{4,6}$/.test(code) ? code : null,
+    strat: ['ma_cross','atr_break','boll','kd_cross'].includes(strat) ? strat : null,
+    months: parseInt(mo)||null,
+    p1: p1!=null?parseFloat(p1):null,
+    p2: p2!=null?parseFloat(p2):null
+  };
+}
+function pushBtHash(){
+  const strat=document.querySelector('input[name=strategy]:checked')?.value||'ma_cross';
+  const mo=document.getElementById('btMonths').value;
+  let p1='',p2='';
+  if(strat==='ma_cross'){
+    p1=document.getElementById('p-ma-fast').value;
+    p2=document.getElementById('p-ma-slow').value;
+  } else if(strat==='atr_break'){
+    p1=document.getElementById('p-atr-period').value;
+    p2=document.getElementById('p-atr-mult').value;
+  } else if(strat==='boll'){
+    p1=document.getElementById('p-boll-period').value;
+    p2=document.getElementById('p-boll-mult').value;
+  } else if(strat==='kd_cross'){
+    p1=document.getElementById('p-kd-period').value;
+  }
+  const tag=`#${BT_STOCK}/${strat}/${mo}/${p1}${p2?'/'+p2:''}`;
+  if(location.hash!==tag) history.replaceState(null,'',tag);
+}
+function applyBtHash(h){
+  if(!h) return;
+  if(h.code){ BT_STOCK=h.code; }
+  if(h.strat){
+    const rb=document.querySelector(`input[name=strategy][value="${h.strat}"]`);
+    if(rb){
+      rb.checked=true;
+      document.querySelectorAll('.radio-opt').forEach(o=>o.classList.remove('selected'));
+      rb.closest('.radio-opt')?.classList.add('selected');
+      /* Show matching param panel (IDs: p-ma_cross, p-atr_break, p-boll, p-kd_cross) */
+      document.querySelectorAll('.strategy-params').forEach(p=>p.classList.remove('visible'));
+      document.getElementById(`p-${h.strat}`)?.classList.add('visible');
+    }
+  }
+  if(h.months){
+    BT_MONTHS=h.months;
+    const sel=document.getElementById('btMonths');
+    if(sel) sel.value=h.months;
+  }
+  if(h.strat==='ma_cross'&&h.p1!=null){
+    if(h.p1) document.getElementById('p-ma-fast').value=h.p1;
+    if(h.p2) document.getElementById('p-ma-slow').value=h.p2;
+  } else if(h.strat==='atr_break'&&h.p1!=null){
+    if(h.p1) document.getElementById('p-atr-period').value=h.p1;
+    if(h.p2!=null) document.getElementById('p-atr-mult').value=h.p2;
+  } else if(h.strat==='boll'&&h.p1!=null){
+    if(h.p1) document.getElementById('p-boll-period').value=h.p1;
+    if(h.p2!=null) document.getElementById('p-boll-mult').value=h.p2;
+  } else if(h.strat==='kd_cross'&&h.p1!=null){
+    if(h.p1) document.getElementById('p-kd-period').value=h.p1;
+  }
+}
+
 /* ── Boot ── */
 (async function boot(){
   injectNav('backtest');
   loadStockList().catch(()=>{});
   await initCharts();
-  const init=STOCK_LIST.find(s=>s.code==='2330');
-  document.getElementById('btStockInput').value=init?`2330 ${init.name}`:'2330';
-  document.getElementById('runBt').addEventListener('click', runBacktest);
-  document.getElementById('btMonths').addEventListener('change',e=>BT_MONTHS=+e.target.value);
+
+  /* Read hash state and apply to form before we populate the input */
+  const initHash=parseBtHash();
+  applyBtHash(initHash);
+
+  const init=STOCK_LIST.find(s=>s.code===BT_STOCK);
+  document.getElementById('btStockInput').value=init?`${BT_STOCK} ${init.name}`:BT_STOCK;
+
+  document.getElementById('runBt').addEventListener('click', ()=>{ runBacktest(); });
+  document.getElementById('btMonths').addEventListener('change',e=>{ BT_MONTHS=+e.target.value; });
+
+  /* If hash had a full configuration, auto-run the backtest */
+  if(initHash?.code && initHash?.strat){
+    runBacktest();
+  }
 })();
 </script>
 </body>

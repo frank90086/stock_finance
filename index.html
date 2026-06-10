@@ -98,7 +98,7 @@
 
   <!-- Main chart card -->
   <div class="card">
-    <div class="card-hd">
+    <div class="card-hd primary">
       <h2>日 K 線</h2>
       <span class="readout" id="ohlcReadout" aria-live="polite"></span>
     </div>
@@ -353,7 +353,8 @@ function render(bars){
   /* Update stats */
   const last=bars[bars.length-1], prev=bars[bars.length-2]||last;
   const chg=last.close-prev.close, pct=chg/prev.close*100, up=chg>=0;
-  document.getElementById('lastPrice').textContent=last.close.toFixed(2);
+  const priceEl=document.getElementById('lastPrice');
+  priceEl.textContent=last.close.toFixed(2);
   const chgEl=document.getElementById('lastChg');
   chgEl.className='chg-badge '+(up?'up':'dn');
   chgEl.textContent=`${up?'▲':'▼'} ${Math.abs(chg).toFixed(2)} (${up?'+':''}${pct.toFixed(2)}%)`;
@@ -440,13 +441,26 @@ function setStatus(type,html){
 
 /* ── Controls wiring ── */
 let SELECTED='2330';
+
+/* ── URL hash state: #STOCK/MONTHS  e.g. #2330/12 ── */
+function parseHash(){
+  const h=location.hash.replace('#','');
+  if(!h) return null;
+  const [code,mo]=h.split('/');
+  return { code:/^\d{4,6}$/.test(code)?code:null, months:parseInt(mo)||null };
+}
+function pushHash(code, months){
+  const tag=`#${code}/${months}`;
+  if(location.hash!==tag) history.replaceState(null,'',tag);
+}
+
 function wireControls(){
   document.getElementById('rangeSeg').addEventListener('click',e=>{
     const b=e.target.closest('button'); if(!b) return;
     document.querySelectorAll('#rangeSeg button').forEach(x=>x.classList.remove('active'));
     b.classList.add('active');
     currentMonths=+b.dataset.months;
-    if(SELECTED) runChart(SELECTED,currentMonths);
+    if(SELECTED){ pushHash(SELECTED,currentMonths); runChart(SELECTED,currentMonths); }
   });
   document.getElementById('toggles').addEventListener('click',e=>{
     const b=e.target.closest('.tg'); if(!b) return;
@@ -462,7 +476,19 @@ function wireControls(){
     onSelect(s){
       SELECTED=s.code;
       document.getElementById('stockInput').value=`${s.code} ${s.name}`;
+      pushHash(s.code, currentMonths);
       runChart(s.code, currentMonths);
+    }
+  });
+  /* Support back/forward navigation */
+  window.addEventListener('hashchange',()=>{
+    const h=parseHash(); if(!h||!h.code) return;
+    if(h.code!==SELECTED||h.months&&h.months!==currentMonths){
+      SELECTED=h.code;
+      if(h.months){ currentMonths=h.months; document.querySelectorAll('#rangeSeg button').forEach(b=>{ b.classList.toggle('active',+b.dataset.months===currentMonths); }); }
+      const found=STOCK_LIST.find(s=>s.code===SELECTED);
+      document.getElementById('stockInput').value=found?`${found.code} ${found.name}`:SELECTED;
+      runChart(SELECTED,currentMonths);
     }
   });
 }
@@ -479,6 +505,11 @@ async function runChart(stockNo, months){
     document.getElementById('tickerLabel').textContent=`TWSE/TPEX · ${stockNo}`;
     document.title=`${showName}（${stockNo}）— TWSE Analytics`;
     render(bars);
+    /* Flash amber on initial load */
+    const pe=document.getElementById('lastPrice');
+    pe.classList.remove('flash-up','flash-dn','flash-load');
+    void pe.offsetWidth;
+    pe.classList.add('flash-load');
     setStatus('ok',`✓ 已載入 ${showName}（${stockNo}）${bars.length} 個交易日。資料源：${source}。`);
     const setF=(id,txt,ok=true)=>{ const el=document.getElementById(id); el.textContent=txt; el.style.color=ok?'':'var(--t2)'; el.style.fontSize=ok?'':'13px'; };
     setF('stat-pe','載入中…',false); setF('stat-yield','載入中…',false); setF('stat-pb','載入中…',false);
@@ -494,6 +525,12 @@ async function runChart(stockNo, months){
 /* ── Boot ── */
 (async function boot(){
   injectNav('chart');
+
+  /* ── Read initial state from URL hash: #STOCK or #STOCK/MONTHS ── */
+  const initHash = parseHash();
+  if(initHash?.code){ SELECTED = initHash.code; }
+  if(initHash?.months){ currentMonths = initHash.months; }
+
   setStatus('loading','<span class="spin" aria-hidden="true"></span>正在載入圖表元件…');
   if(!await ensureChartLib()){
     setStatus('err','⚠ 無法載入圖表元件（lightweight-charts）。請確認網路可連線後重新整理。');
@@ -501,10 +538,17 @@ async function runChart(stockNo, months){
   }
   try{ initCharts(); }catch(e){ setStatus('err','⚠ 圖表初始化失敗：'+e.message); return; }
   wireControls();
+
+  /* Sync range-button UI to currentMonths (may differ from default 6) */
+  document.querySelectorAll('#rangeSeg button').forEach(b=>{
+    b.classList.toggle('active',+b.dataset.months===currentMonths);
+  });
+
   loadStockList().catch(()=>{});
-  const init=STOCK_LIST.find(s=>s.code==='2330');
-  document.getElementById('stockInput').value=init?`2330 ${init.name}`:'2330';
-  runChart('2330',6);
+  const init=STOCK_LIST.find(s=>s.code===SELECTED);
+  document.getElementById('stockInput').value=init?`${SELECTED} ${init.name}`:SELECTED;
+  pushHash(SELECTED, currentMonths);
+  runChart(SELECTED, currentMonths);
 })();
 
 window.addEventListener('error',ev=>{

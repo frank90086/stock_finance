@@ -425,7 +425,7 @@ async function loadFundamentals(stockNo){
 
 /* ── Shared nav injection ── */
 function injectNav(activePage){
-  // activePage: 'chart' | 'backtest'
+  // activePage: 'chart' | 'backtest' | ''
   const el=document.getElementById('app-nav');
   if(!el) return;
   el.innerHTML=`
@@ -436,6 +436,12 @@ function injectNav(activePage){
     <div class="nav-links">
       <a href="index.html"    class="nav-link${activePage==='chart'?    ' active':''}"${activePage==='chart'?    ' aria-current="page"':''}>個股走勢</a>
       <a href="backtest.html" class="nav-link${activePage==='backtest'?' active':''}"${activePage==='backtest'?' aria-current="page"':''}>策略回測</a>
+    </div>
+    <div class="nav-right">
+      <span class="nav-exchange">TWSE/TPEX</span>
+      <span class="nav-live" aria-label="即時資料" title="資料來自臺灣證券交易所">
+        <span class="live-dot" aria-hidden="true"></span>LIVE
+      </span>
     </div>`;
 }
 
