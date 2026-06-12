@@ -15,8 +15,8 @@
   /* Page-specific: MA colour tokens */
   :root{
     --ma5:#ff7eb6; --ma10:#f59e0b; --ma20:#ffd23f;
-    --ma60:#4ade80; --ma120:#38bdf8; --ma240:#a78bfa;
-    --bbBand:#60a5fa;
+    --ma60:#4ade80; --ma120:#38bdf8; --ma240:#f472b6;
+    --bbBand:#818cf8;
   }
   #priceChart { height:370px; width:100%; }
   #atrChart   { height:180px; width:100%; }
@@ -215,14 +215,14 @@ async function ensureChartLib(){
 /* ── Chart init ── */
 function initCharts(){
   const common={
-    layout:{ background:{type:'solid',color:'transparent'}, textColor:COLORS.text, fontFamily:'JetBrains Mono, ui-monospace, monospace' },
+    layout:{ background:{type:'solid',color:'transparent'}, textColor:COLORS.text, fontFamily:'Space Mono, ui-monospace, monospace' },
     grid:{ vertLines:{color:COLORS.grid}, horzLines:{color:COLORS.grid} },
     rightPriceScale:{ borderColor:COLORS.border, minimumWidth:78, alignLabels:true },
     leftPriceScale:{ visible:false },
     timeScale:{ borderColor:COLORS.border, timeVisible:false, rightOffset:2, fixLeftEdge:true, fixRightEdge:true },
     crosshair:{ mode:0,
-      vertLine:{color:'#2a3650',width:1,style:2,labelBackgroundColor:'#1e2a3a'},
-      horzLine:{color:'#2a3650',width:1,style:2,labelBackgroundColor:'#1e2a3a'} }
+      vertLine:{color:'#2a2a38',width:1,style:2,labelBackgroundColor:'#0f0f16'},
+      horzLine:{color:'#2a2a38',width:1,style:2,labelBackgroundColor:'#0f0f16'} }
   };
 
   priceChart=LightweightCharts.createChart(document.getElementById('priceChart'),common);

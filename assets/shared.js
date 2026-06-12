@@ -6,13 +6,13 @@
 /* ── Colours (mirror CSS variables for LightweightCharts) ── */
 const COLORS = {
   up:'#ef5350', dn:'#26a69a',
-  atr7:'#f59e0b', atr14:'#60a5fa',
-  grid:'#1c2332', text:'#7d9ab5', border:'#1e2736',
+  atr7:'#f59e0b', atr14:'#818cf8',
+  grid:'#14141c', text:'#5a5a70', border:'#1e1e28',
   ma5:'#ff7eb6', ma10:'#f59e0b', ma20:'#ffd23f',
-  ma60:'#4ade80', ma120:'#38bdf8', ma240:'#a78bfa',
-  bbBand:'#60a5fa', bbMid:'#8899aa',
+  ma60:'#4ade80', ma120:'#38bdf8', ma240:'#f472b6',
+  bbBand:'#818cf8', bbMid:'#5a5a70',
   kLine:'#a78bfa', dLine:'#f9a8d4',
-  macdLine:'#60a5fa', sigLine:'#f59e0b',
+  macdLine:'#818cf8', sigLine:'#f59e0b',
 };
 
 const MA_DEFS = [

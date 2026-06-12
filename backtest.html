@@ -327,16 +327,16 @@ async function initCharts(){
   if(equityChart) return;   // already initialized
   await ensureChartLib();
   const common={
-    layout:{ background:{type:'solid',color:'transparent'}, textColor:'#7d9ab5', fontFamily:'JetBrains Mono, ui-monospace, monospace' },
-    grid:{ vertLines:{color:'#1c2332'}, horzLines:{color:'#1c2332'} },
-    rightPriceScale:{ borderColor:'#1e2736', minimumWidth:72 },
+    layout:{ background:{type:'solid',color:'transparent'}, textColor:'#5a5a70', fontFamily:'Space Mono, ui-monospace, monospace' },
+    grid:{ vertLines:{color:'#14141c'}, horzLines:{color:'#14141c'} },
+    rightPriceScale:{ borderColor:'#1e1e28', minimumWidth:72 },
     leftPriceScale:{ visible:false },
-    timeScale:{ borderColor:'#1e2736', timeVisible:false, rightOffset:2, fixLeftEdge:true, fixRightEdge:true },
-    crosshair:{ mode:0, vertLine:{color:'#2a3650',width:1,style:2,labelBackgroundColor:'#1e2a3a'}, horzLine:{color:'#2a3650',width:1,style:2,labelBackgroundColor:'#1e2a3a'} }
+    timeScale:{ borderColor:'#1e1e28', timeVisible:false, rightOffset:2, fixLeftEdge:true, fixRightEdge:true },
+    crosshair:{ mode:0, vertLine:{color:'#2a2a38',width:1,style:2,labelBackgroundColor:'#0f0f16'}, horzLine:{color:'#2a2a38',width:1,style:2,labelBackgroundColor:'#0f0f16'} }
   };
   equityChart=LightweightCharts.createChart(document.getElementById('equityChart'), common);
   equitySeries=equityChart.addAreaSeries({
-    lineColor:'#f59e0b', topColor:'rgba(245,158,11,.25)', bottomColor:'rgba(245,158,11,.02)',
+    lineColor:'#818cf8', topColor:'rgba(129,140,248,.25)', bottomColor:'rgba(129,140,248,.02)',
     lineWidth:2, priceFormat:{type:'price',precision:3,minMove:0.001},
     priceLineVisible:false, lastValueVisible:false,
   });
